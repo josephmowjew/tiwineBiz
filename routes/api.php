@@ -69,5 +69,9 @@ Route::prefix('v1')->group(function () {
         // Product Batch Management (Inventory batches with expiry tracking)
         Route::apiResource('product-batches', \App\Http\Controllers\Api\V1\ProductBatchController::class);
 
+        // Exchange Rate Management (Immutable - no updates)
+        Route::get('exchange-rates/latest', [\App\Http\Controllers\Api\V1\ExchangeRateController::class, 'latest']);
+        Route::apiResource('exchange-rates', \App\Http\Controllers\Api\V1\ExchangeRateController::class)->except(['update']);
+
     });
 });
