@@ -17,7 +17,7 @@ class SaleFactory extends Factory
     public function definition(): array
     {
         $subtotal = fake()->randomFloat(2, 5000, 500000);
-        $discountPercentage = fake()->optional()->randomFloat(2, 0, 20);
+        $discountPercentage = fake()->boolean(30) ? fake()->randomFloat(2, 0, 20) : 0;
         $discountAmount = $discountPercentage ? ($subtotal * $discountPercentage / 100) : 0;
         $afterDiscount = $subtotal - $discountAmount;
         $taxAmount = $afterDiscount * 0.165;
@@ -25,7 +25,7 @@ class SaleFactory extends Factory
         $paymentStatus = fake()->randomElement(['paid', 'partial', 'pending']);
         $amountPaid = $paymentStatus === 'paid' ? $totalAmount : ($paymentStatus === 'partial' ? fake()->randomFloat(2, 1000, $totalAmount - 1000) : 0);
         $balance = $totalAmount - $amountPaid;
-        $changeGiven = $paymentStatus === 'paid' ? fake()->optional()->randomFloat(2, 0, 5000) : 0;
+        $changeGiven = $paymentStatus === 'paid' ? (fake()->boolean(20) ? fake()->randomFloat(2, 0, 5000) : 0) : 0;
 
         $paymentMethod = fake()->randomElement(['cash', 'airtel_money', 'tnm_mpamba', 'bank_transfer', 'mixed']);
 
@@ -53,7 +53,7 @@ class SaleFactory extends Factory
             'efd_fiscal_signature' => fake()->optional()->sha256(),
             'efd_transmitted_at' => fake()->optional()->dateTimeBetween('-30 days', 'now'),
             'efd_response' => [],
-            'sale_type' => fake()->randomElement(['regular', 'wholesale', 'retail', 'credit']),
+            'sale_type' => fake()->randomElement(['pos', 'whatsapp', 'phone_order', 'online']),
             'notes' => fake()->optional()->sentence(),
             'internal_notes' => fake()->optional()->sentence(),
             'sale_date' => fake()->dateTimeBetween('-30 days', 'now'),

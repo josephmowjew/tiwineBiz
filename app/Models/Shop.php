@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Shop extends Model
 {
-    use HasUuids;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'owner_id',
@@ -73,8 +74,8 @@ class Shop extends Model
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'shop_users')
-            ->withPivot('role_id', 'is_active', 'joined_at', 'last_accessed_at')
-            ->withTimestamps();
+            ->using(ShopUser::class)
+            ->withPivot('role_id', 'is_active', 'joined_at', 'last_accessed_at');
     }
 
     public function shopUsers(): HasMany

@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Auth;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Resources\UserResource;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+
+class AuthController extends Controller
+{
+    /**
+     * Register a new user.
+     */
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        try {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'password_hash' => Hash::make($request->password),
+                'profile_photo_url' => $request->profile_photo_url,
+                'preferred_language' => $request->preferred_language ?? 'en',
+                'timezone' => $request->timezone ?? 'Africa/Blantyre',
+                'is_active' => true,
+            ]);
+
+            $token = $user->createToken('auth-token')->plainTextToken;
+
+            return response()->json([
+                'message' => 'Registration successful.',
+                'user' => new UserResource($user),
+                'token' => $token,
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Registration failed.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Login user with email or phone.
+     */
+    public function login(LoginRequest $request): JsonResponse
+    {
+        try {
+            // Determine if login is email or phone
+            $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
+
+            // Find user by email or phone
+            $user = User::where($loginField, $request->login)->first();
+
+            // Check if user exists and password is correct
+            if (! $user || ! Hash::check($request->password, $user->password_hash)) {
+                throw ValidationException::withMessages([
+                    'login' => ['The provided credentials are incorrect.'],
+                ]);
+            }
+
+            // Check if user is active
+            if (! $user->is_active) {
+                return response()->json([
+                    'message' => 'Your account has been deactivated. Please contact support.',
+                ], 403);
+            }
+
+            // Check if account is locked
+            if ($user->locked_until && $user->locked_until->isFuture()) {
+                return response()->json([
+                    'message' => 'Your account is temporarily locked. Please try again later.',
+                    'locked_until' => $user->locked_until,
+                ], 403);
+            }
+
+            // Update last login
+            $user->update([
+                'last_login_at' => now(),
+                'last_login_ip' => $request->ip(),
+                'failed_login_attempts' => 0,
+                'locked_until' => null,
+            ]);
+
+            // Create token
+            $token = $user->createToken('auth-token')->plainTextToken;
+
+            return response()->json([
+                'message' => 'Login successful.',
+                'user' => new UserResource($user),
+                'token' => $token,
+            ], 200);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Login failed.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Logout user (revoke token).
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        try {
+            $token = $request->user()->currentAccessToken();
+
+            if ($token) {
+                $token->delete();
+            }
+
+            return response()->json([
+                'message' => 'Logout successful.',
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Logout failed.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get authenticated user.
+     */
+    public function user(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Load relationships if requested
+            if ($request->has('include')) {
+                $includes = explode(',', $request->input('include'));
+                $allowedIncludes = ['ownedShops', 'shops'];
+                $validIncludes = array_intersect($includes, $allowedIncludes);
+
+                if (! empty($validIncludes)) {
+                    $user->load($validIncludes);
+                }
+            }
+
+            return response()->json([
+                'user' => new UserResource($user),
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to retrieve user data.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+}

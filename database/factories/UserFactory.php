@@ -29,7 +29,7 @@ class UserFactory extends Factory
             'phone' => '+265'.fake()->numberBetween(111111111, 999999999),
             'email_verified_at' => now(),
             'phone_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
+            'password_hash' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'preferred_language' => fake()->randomElement(['en', 'ny']),
             'timezone' => 'Africa/Blantyre',

@@ -66,8 +66,8 @@ class User extends Authenticatable
     public function shops(): BelongsToMany
     {
         return $this->belongsToMany(Shop::class, 'shop_users')
-            ->withPivot('role_id', 'is_active', 'joined_at', 'last_accessed_at')
-            ->withTimestamps();
+            ->using(ShopUser::class)
+            ->withPivot('role_id', 'is_active', 'joined_at', 'last_accessed_at');
     }
 
     public function shopUsers(): HasMany
