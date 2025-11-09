@@ -29,7 +29,7 @@ class SubscriptionPaymentFactory extends Factory
             'currency' => 'MWK',
             'payment_method' => fake()->randomElement(['airtel_money', 'tnm_mpamba', 'bank_transfer', 'cash']),
             'transaction_reference' => fake()->numerify('TXN-########'),
-            'status' => fake()->randomElement(['pending', 'completed', 'failed', 'refunded']),
+            'status' => fake()->randomElement(['pending', 'confirmed', 'failed', 'refunded']),
             'period_start' => $periodStart,
             'period_end' => $periodEnd,
             'payment_date' => fake()->dateTimeBetween('-60 days', 'now'),
@@ -39,12 +39,12 @@ class SubscriptionPaymentFactory extends Factory
     }
 
     /**
-     * Indicate that the payment is completed.
+     * Indicate that the payment is confirmed.
      */
-    public function completed(): static
+    public function confirmed(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => 'completed',
+            'status' => 'confirmed',
             'confirmed_at' => now(),
         ]);
     }

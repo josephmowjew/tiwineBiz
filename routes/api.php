@@ -82,5 +82,8 @@ Route::prefix('v1')->group(function () {
         // Subscription Management
         Route::apiResource('subscriptions', \App\Http\Controllers\Api\V1\SubscriptionController::class);
 
+        // Subscription Payment Management (Immutable - no updates or deletes)
+        Route::apiResource('subscription-payments', \App\Http\Controllers\Api\V1\SubscriptionPaymentController::class)->only(['index', 'store', 'show']);
+
     });
 });
