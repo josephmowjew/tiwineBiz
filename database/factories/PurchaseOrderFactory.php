@@ -43,7 +43,7 @@ class PurchaseOrderFactory extends Factory
             'currency' => 'MWK',
             'exchange_rate' => $exchangeRate,
             'amount_in_base_currency' => $totalAmount,
-            'status' => fake()->randomElement(['draft', 'sent', 'confirmed', 'partial', 'completed', 'cancelled']),
+            'status' => fake()->randomElement(['draft', 'sent', 'confirmed', 'in_transit', 'at_border', 'clearing', 'received', 'partial', 'cancelled']),
             'order_date' => fake()->dateTimeBetween('-3 months', 'now'),
             'expected_delivery_date' => fake()->dateTimeBetween('now', '+60 days'),
             'actual_delivery_date' => fake()->optional()->dateTimeBetween('-30 days', 'now'),
@@ -64,12 +64,12 @@ class PurchaseOrderFactory extends Factory
     }
 
     /**
-     * Indicate that the purchase order is completed.
+     * Indicate that the purchase order is received/completed.
      */
-    public function completed(): static
+    public function received(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => 'completed',
+            'status' => 'received',
             'actual_delivery_date' => fake()->dateTimeBetween('-30 days', 'now'),
         ]);
     }

@@ -63,5 +63,8 @@ Route::prefix('v1')->group(function () {
         // Stock Movement Management (Immutable - no updates or deletes)
         Route::apiResource('stock-movements', \App\Http\Controllers\Api\V1\StockMovementController::class)->only(['index', 'store', 'show']);
 
+        // Purchase Order Management
+        Route::apiResource('purchase-orders', \App\Http\Controllers\Api\V1\PurchaseOrderController::class);
+
     });
 });
