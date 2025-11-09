@@ -11,6 +11,8 @@ class ShopUser extends Pivot
 {
     use HasFactory, HasUuids;
 
+    protected $table = 'shop_users';
+
     public $timestamps = false;
 
     protected $fillable = [

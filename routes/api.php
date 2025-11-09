@@ -60,5 +60,8 @@ Route::prefix('v1')->group(function () {
         // Credit Management (Customer layaway/credit purchases)
         Route::apiResource('credits', \App\Http\Controllers\Api\V1\CreditController::class);
 
+        // Stock Movement Management (Immutable - no updates or deletes)
+        Route::apiResource('stock-movements', \App\Http\Controllers\Api\V1\StockMovementController::class)->only(['index', 'store', 'show']);
+
     });
 });

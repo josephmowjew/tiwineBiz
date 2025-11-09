@@ -16,12 +16,33 @@ class StockMovementFactory extends Factory
      */
     public function definition(): array
     {
-        $movementType = fake()->randomElement(['sale', 'purchase', 'adjustment', 'return', 'transfer', 'damage', 'expired']);
+        $movementType = fake()->randomElement([
+            'sale', 'purchase', 'return_from_customer', 'return_to_supplier',
+            'adjustment_increase', 'adjustment_decrease', 'damage', 'theft',
+            'expired', 'transfer_out', 'transfer_in', 'stocktake', 'opening_balance',
+        ]);
+
         $quantity = fake()->randomFloat(3, 1, 100);
-        $quantityBefore = fake()->randomFloat(3, 0, 200);
-        $quantityAfter = $movementType === 'sale' ? $quantityBefore - $quantity : $quantityBefore + $quantity;
+        $quantityBefore = fake()->randomFloat(3, 10, 200);
+
+        // Determine if this movement decreases or increases stock
+        $decreaseTypes = ['sale', 'return_to_supplier', 'adjustment_decrease', 'damage', 'theft', 'expired', 'transfer_out'];
+        $increaseTypes = ['purchase', 'return_from_customer', 'adjustment_increase', 'transfer_in', 'stocktake', 'opening_balance'];
+
+        if (in_array($movementType, $decreaseTypes)) {
+            $quantityAfter = $quantityBefore - $quantity;
+        } else {
+            $quantityAfter = $quantityBefore + $quantity;
+        }
+
         $unitCost = fake()->randomFloat(2, 100, 50000);
         $totalCost = $quantity * $unitCost;
+
+        // Determine reason (required for certain types)
+        $reasonRequired = ['adjustment_increase', 'adjustment_decrease', 'damage', 'theft', 'expired', 'stocktake'];
+        $reason = in_array($movementType, $reasonRequired)
+            ? fake()->sentence()
+            : fake()->optional()->sentence();
 
         return [
             'shop_id' => null,
@@ -35,7 +56,7 @@ class StockMovementFactory extends Factory
             'total_cost' => $totalCost,
             'reference_type' => fake()->optional()->randomElement(['sale', 'purchase_order', 'adjustment']),
             'reference_id' => fake()->optional()->uuid(),
-            'reason' => fake()->optional()->sentence(),
+            'reason' => $reason,
             'notes' => fake()->optional()->sentence(),
             'from_location' => fake()->optional()->word(),
             'to_location' => fake()->optional()->word(),
