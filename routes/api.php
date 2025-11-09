@@ -73,5 +73,8 @@ Route::prefix('v1')->group(function () {
         Route::get('exchange-rates/latest', [\App\Http\Controllers\Api\V1\ExchangeRateController::class, 'latest']);
         Route::apiResource('exchange-rates', \App\Http\Controllers\Api\V1\ExchangeRateController::class)->except(['update']);
 
+        // Mobile Money Transaction Management (Immutable - no updates or deletes)
+        Route::apiResource('mobile-money-transactions', \App\Http\Controllers\Api\V1\MobileMoneyTransactionController::class)->only(['index', 'store', 'show']);
+
     });
 });

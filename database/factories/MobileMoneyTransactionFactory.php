@@ -17,7 +17,7 @@ class MobileMoneyTransactionFactory extends Factory
     public function definition(): array
     {
         $provider = fake()->randomElement(['airtel_money', 'tnm_mpamba']);
-        $transactionType = fake()->randomElement(['payment', 'refund', 'payout']);
+        $transactionType = fake()->randomElement(['c2b', 'b2c', 'b2b']);
         $amount = fake()->randomFloat(2, 1000, 500000);
         $transactionFee = $amount * 0.01;
 
@@ -34,7 +34,7 @@ class MobileMoneyTransactionFactory extends Factory
             'transaction_fee' => $transactionFee,
             'reference_type' => fake()->optional()->randomElement(['sale', 'payment', 'subscription_payment']),
             'reference_id' => fake()->optional()->uuid(),
-            'status' => fake()->randomElement(['pending', 'completed', 'failed', 'cancelled']),
+            'status' => fake()->randomElement(['pending', 'successful', 'failed', 'reversed']),
             'request_payload' => [
                 'amount' => $amount,
                 'msisdn' => '+265'.fake()->numberBetween(111111111, 999999999),
@@ -54,12 +54,12 @@ class MobileMoneyTransactionFactory extends Factory
     }
 
     /**
-     * Indicate that the transaction is completed.
+     * Indicate that the transaction is successful.
      */
-    public function completed(): static
+    public function successful(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => 'completed',
+            'status' => 'successful',
             'confirmed_at' => now(),
         ]);
     }
