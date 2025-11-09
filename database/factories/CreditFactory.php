@@ -20,7 +20,7 @@ class CreditFactory extends Factory
         $amountPaid = fake()->randomFloat(2, 0, $originalAmount);
         $balance = $originalAmount - $amountPaid;
         $issueDate = fake()->dateTimeBetween('-6 months', 'now');
-        $paymentTerm = fake()->randomElement(['lero', 'mawa', 'sabata_imodzi', 'masabata_awiri', 'mwezi_umodzi', 'miyezi_iwiri', 'miyezi_itatu']);
+        $paymentTerm = fake()->randomElement(['lero', 'mawa', 'sabata_imeneyi', 'malipiro_15', 'malipiro_30', 'masabata_2', 'mwezi_umodzi', 'miyezi_2', 'miyezi_3']);
         $daysToAdd = $this->getDaysForPaymentTerm($paymentTerm);
         $dueDate = (clone $issueDate)->modify("+{$daysToAdd} days");
 
@@ -62,11 +62,14 @@ class CreditFactory extends Factory
         return match ($term) {
             'lero' => 0,
             'mawa' => 1,
-            'sabata_imodzi' => 7,
-            'masabata_awiri' => 14,
+            'sabata_imeneyi' => 7,
+            'malipiro_15' => 15,
+            'malipiro_30' => 30,
+            'masabata_2' => 14,
             'mwezi_umodzi' => 30,
-            'miyezi_iwiri' => 60,
-            'miyezi_itatu' => 90,
+            'miyezi_2' => 60,
+            'miyezi_3' => 90,
+            'custom' => 30,
             default => 30,
         };
     }

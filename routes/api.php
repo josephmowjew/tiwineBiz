@@ -57,5 +57,8 @@ Route::prefix('v1')->group(function () {
         // Payment Management (Immutable - no updates or deletes)
         Route::apiResource('payments', \App\Http\Controllers\Api\V1\PaymentController::class)->only(['index', 'store', 'show']);
 
+        // Credit Management (Customer layaway/credit purchases)
+        Route::apiResource('credits', \App\Http\Controllers\Api\V1\CreditController::class);
+
     });
 });
