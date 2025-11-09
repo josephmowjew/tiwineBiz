@@ -54,5 +54,8 @@ Route::prefix('v1')->group(function () {
         // Sales Management
         Route::apiResource('sales', \App\Http\Controllers\Api\V1\SaleController::class);
 
+        // Payment Management (Immutable - no updates or deletes)
+        Route::apiResource('payments', \App\Http\Controllers\Api\V1\PaymentController::class)->only(['index', 'store', 'show']);
+
     });
 });

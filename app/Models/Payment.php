@@ -11,6 +11,8 @@ class Payment extends Model
 {
     use HasFactory, HasUuids;
 
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'shop_id',
         'customer_id',
