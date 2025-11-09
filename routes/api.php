@@ -76,5 +76,8 @@ Route::prefix('v1')->group(function () {
         // Mobile Money Transaction Management (Immutable - no updates or deletes)
         Route::apiResource('mobile-money-transactions', \App\Http\Controllers\Api\V1\MobileMoneyTransactionController::class)->only(['index', 'store', 'show']);
 
+        // EFD Transaction Management (Immutable - no updates or deletes)
+        Route::apiResource('efd-transactions', \App\Http\Controllers\Api\V1\EfdTransactionController::class)->only(['index', 'store', 'show']);
+
     });
 });
