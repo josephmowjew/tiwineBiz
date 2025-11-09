@@ -79,5 +79,8 @@ Route::prefix('v1')->group(function () {
         // EFD Transaction Management (Immutable - no updates or deletes)
         Route::apiResource('efd-transactions', \App\Http\Controllers\Api\V1\EfdTransactionController::class)->only(['index', 'store', 'show']);
 
+        // Subscription Management
+        Route::apiResource('subscriptions', \App\Http\Controllers\Api\V1\SubscriptionController::class);
+
     });
 });

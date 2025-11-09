@@ -17,7 +17,7 @@ class SubscriptionFactory extends Factory
     public function definition(): array
     {
         $plan = fake()->randomElement(['free', 'business', 'professional', 'enterprise']);
-        $billingCycle = fake()->randomElement(['monthly', 'quarterly', 'yearly']);
+        $billingCycle = fake()->randomElement(['monthly', 'annual']);
         $amount = $this->getAmountForPlan($plan, $billingCycle);
         $startedAt = fake()->dateTimeBetween('-1 year', 'now');
         $periodStart = fake()->dateTimeBetween('-30 days', 'now');
@@ -29,7 +29,7 @@ class SubscriptionFactory extends Factory
             'billing_cycle' => $billingCycle,
             'amount' => $amount,
             'currency' => 'MWK',
-            'status' => fake()->randomElement(['active', 'trialing', 'past_due', 'cancelled', 'expired']),
+            'status' => fake()->randomElement(['active', 'cancelled', 'suspended', 'grace_period', 'expired']),
             'started_at' => $startedAt,
             'current_period_start' => $periodStart,
             'current_period_end' => $periodEnd,
@@ -56,8 +56,7 @@ class SubscriptionFactory extends Factory
 
         $multiplier = match ($cycle) {
             'monthly' => 1,
-            'quarterly' => 2.7,
-            'yearly' => 10,
+            'annual' => 10,
             default => 1,
         };
 
@@ -95,13 +94,13 @@ class SubscriptionFactory extends Factory
     }
 
     /**
-     * Indicate that the subscription is on trial.
+     * Indicate that the subscription is in grace period.
      */
-    public function trial(): static
+    public function gracePeriod(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => 'trialing',
-            'trial_ends_at' => now()->addDays(14),
+            'status' => 'grace_period',
+            'current_period_end' => now()->addDays(7),
         ]);
     }
 
