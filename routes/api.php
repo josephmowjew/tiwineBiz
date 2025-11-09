@@ -66,5 +66,8 @@ Route::prefix('v1')->group(function () {
         // Purchase Order Management
         Route::apiResource('purchase-orders', \App\Http\Controllers\Api\V1\PurchaseOrderController::class);
 
+        // Product Batch Management (Inventory batches with expiry tracking)
+        Route::apiResource('product-batches', \App\Http\Controllers\Api\V1\ProductBatchController::class);
+
     });
 });

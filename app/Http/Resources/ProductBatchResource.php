@@ -38,6 +38,13 @@ class ProductBatchResource extends JsonResource
             'notes' => $this->notes,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
+
+            // Relationships
+            'product' => new ProductResource($this->whenLoaded('product')),
+            'supplier' => new SupplierResource($this->whenLoaded('supplier')),
+            'purchase_order' => new PurchaseOrderResource($this->whenLoaded('purchaseOrder')),
+            'sale_items' => SaleItemResource::collection($this->whenLoaded('saleItems')),
+            'stock_movements' => StockMovementResource::collection($this->whenLoaded('stockMovements')),
         ];
     }
 }
