@@ -2,48 +2,106 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
-        'name',
         'email',
-        'password',
+        'phone',
+        'password_hash',
+        'name',
+        'profile_photo_url',
+        'preferred_language',
+        'timezone',
+        'two_factor_secret',
+        'two_factor_enabled',
+        'failed_login_attempts',
+        'locked_until',
+        'is_active',
+        'last_login_at',
+        'last_login_ip',
+        'email_verified_at',
+        'phone_verified_at',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
-        'password',
+        'password_hash',
+        'two_factor_secret',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'phone_verified_at' => 'datetime',
+            'password_hash' => 'hashed',
+            'two_factor_enabled' => 'boolean',
+            'is_active' => 'boolean',
+            'failed_login_attempts' => 'integer',
+            'locked_until' => 'datetime',
+            'last_login_at' => 'datetime',
         ];
+    }
+
+    public function getAuthPassword(): string
+    {
+        return $this->password_hash;
+    }
+
+    public function ownedShops(): HasMany
+    {
+        return $this->hasMany(Shop::class, 'owner_id');
+    }
+
+    public function shops(): BelongsToMany
+    {
+        return $this->belongsToMany(Shop::class, 'shop_users')
+            ->withPivot('role_id', 'is_active', 'joined_at', 'last_accessed_at')
+            ->withTimestamps();
+    }
+
+    public function shopUsers(): HasMany
+    {
+        return $this->hasMany(ShopUser::class);
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(ActivityLog::class);
+    }
+
+    public function createdProducts(): HasMany
+    {
+        return $this->hasMany(Product::class, 'created_by');
+    }
+
+    public function updatedProducts(): HasMany
+    {
+        return $this->hasMany(Product::class, 'updated_by');
+    }
+
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class, 'served_by');
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class, 'created_by');
+    }
+
+    public function syncQueue(): HasMany
+    {
+        return $this->hasMany(SyncQueue::class);
     }
 }

@@ -12,13 +12,45 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
+            // Primary Key
+            $table->uuid('id')->primary();
+
+            // Authentication
+            $table->string('email', 255)->unique();
+            $table->string('phone', 20)->unique();
+            $table->string('password_hash', 255);
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
+            $table->timestamp('phone_verified_at')->nullable();
+
+            // Personal Information
+            $table->string('name', 255);
+            $table->text('profile_photo_url')->nullable();
+
+            // Preferences
+            $table->string('preferred_language', 10)->default('en');
+            $table->string('timezone', 50)->default('Africa/Blantyre');
+
+            // Security
+            $table->string('two_factor_secret', 255)->nullable();
+            $table->boolean('two_factor_enabled')->default(false);
+            $table->integer('failed_login_attempts')->default(0);
+            $table->timestamp('locked_until')->nullable();
+
+            // Status
+            $table->boolean('is_active')->default(true);
+            $table->timestamp('last_login_at')->nullable();
+            $table->string('last_login_ip', 45)->nullable();
+
+            // Remember Token
             $table->rememberToken();
+
+            // Audit
             $table->timestamps();
+
+            // Indexes
+            $table->index(['email', 'is_active']);
+            $table->index(['phone', 'is_active']);
+            $table->index('last_login_at');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
