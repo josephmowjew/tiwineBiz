@@ -152,4 +152,14 @@ class Shop extends Model
     {
         return $this->hasMany(SyncQueue::class);
     }
+
+    public function branches(): HasMany
+    {
+        return $this->hasMany(Branch::class);
+    }
+
+    public function activeBranches(): HasMany
+    {
+        return $this->hasMany(Branch::class)->where('is_active', true);
+    }
 }

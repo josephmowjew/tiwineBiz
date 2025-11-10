@@ -14,6 +14,7 @@ class Sale extends Model
 
     protected $fillable = [
         'shop_id',
+        'branch_id',
         'sale_number',
         'customer_id',
         'subtotal',
@@ -78,6 +79,11 @@ class Sale extends Model
     public function shop(): BelongsTo
     {
         return $this->belongsTo(Shop::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function customer(): BelongsTo

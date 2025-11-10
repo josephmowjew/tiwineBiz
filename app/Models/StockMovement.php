@@ -15,6 +15,7 @@ class StockMovement extends Model
 
     protected $fillable = [
         'shop_id',
+        'branch_id',
         'product_id',
         'batch_id',
         'movement_type',
@@ -48,6 +49,11 @@ class StockMovement extends Model
     public function shop(): BelongsTo
     {
         return $this->belongsTo(Shop::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function product(): BelongsTo

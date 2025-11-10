@@ -14,6 +14,7 @@ class Customer extends Model
 
     protected $fillable = [
         'shop_id',
+        'branch_id',
         'customer_number',
         'name',
         'phone',
@@ -63,6 +64,11 @@ class Customer extends Model
     public function shop(): BelongsTo
     {
         return $this->belongsTo(Shop::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function sales(): HasMany

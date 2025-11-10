@@ -14,6 +14,8 @@ class ProductBatch extends Model
 
     protected $fillable = [
         'product_id',
+        'shop_id',
+        'branch_id',
         'purchase_order_id',
         'supplier_id',
         'batch_number',
@@ -57,6 +59,16 @@ class ProductBatch extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function shop(): BelongsTo
+    {
+        return $this->belongsTo(Shop::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function purchaseOrder(): BelongsTo
