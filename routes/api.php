@@ -165,5 +165,20 @@ Route::prefix('v1')->group(function () {
             Route::get('/history', [\App\Http\Controllers\Api\V1\SyncController::class, 'history'])->name('api.v1.sync.history');
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | Notification Routes
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\V1\NotificationController::class, 'index'])->name('api.v1.notifications.index');
+            Route::get('/unread-count', [\App\Http\Controllers\Api\V1\NotificationController::class, 'unreadCount'])->name('api.v1.notifications.unread-count');
+            Route::post('/{id}/read', [\App\Http\Controllers\Api\V1\NotificationController::class, 'markAsRead'])->name('api.v1.notifications.mark-as-read');
+            Route::post('/read-all', [\App\Http\Controllers\Api\V1\NotificationController::class, 'markAllAsRead'])->name('api.v1.notifications.mark-all-as-read');
+            Route::delete('/{id}', [\App\Http\Controllers\Api\V1\NotificationController::class, 'destroy'])->name('api.v1.notifications.destroy');
+            Route::get('/preferences', [\App\Http\Controllers\Api\V1\NotificationController::class, 'preferences'])->name('api.v1.notifications.preferences');
+            Route::put('/preferences', [\App\Http\Controllers\Api\V1\NotificationController::class, 'updatePreferences'])->name('api.v1.notifications.update-preferences');
+        });
+
     });
 });

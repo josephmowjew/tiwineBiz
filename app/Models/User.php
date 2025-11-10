@@ -105,6 +105,11 @@ class User extends Authenticatable
         return $this->hasMany(SyncQueue::class);
     }
 
+    public function notificationPreferences(): HasMany
+    {
+        return $this->hasMany(NotificationPreference::class);
+    }
+
     public function branches(): BelongsToMany
     {
         return $this->belongsToMany(Branch::class, 'branch_user')
