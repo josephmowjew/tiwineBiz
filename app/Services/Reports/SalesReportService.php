@@ -306,4 +306,123 @@ class SalesReportService extends BaseReportService
             ]);
         });
     }
+
+    /**
+     * Generate PDF export for sales report.
+     */
+    public function generatePdfExport(string $type, array $data): \Barryvdh\DomPDF\PDF
+    {
+        $viewData = [
+            'type' => $type,
+            'data' => $data,
+            'generated_at' => now()->format('Y-m-d H:i:s'),
+        ];
+
+        return $this->generatePdf('reports.sales-pdf', $viewData, "sales-{$type}.pdf");
+    }
+
+    /**
+     * Prepare data for Excel export.
+     */
+    public function prepareExcelExport(string $type, array $data): array
+    {
+        return match ($type) {
+            'summary' => $this->prepareSummaryExcelData($data),
+            'daily' => $this->prepareDailyExcelData($data),
+            'weekly' => $this->prepareWeeklyExcelData($data),
+            'monthly' => $this->prepareMonthlyExcelData($data),
+            default => ['data' => [], 'headings' => [], 'title' => 'Sales Report'],
+        };
+    }
+
+    /**
+     * Prepare summary report data for Excel.
+     */
+    protected function prepareSummaryExcelData(array $data): array
+    {
+        $rows = [
+            ['Total Sales', $data['total_sales'] ?? 0],
+            ['Total Revenue', $data['total_revenue'] ?? 0],
+            ['Average Transaction', $data['average_transaction_value'] ?? 0],
+            ['Total Items Sold', $data['total_items_sold'] ?? 0],
+        ];
+
+        return [
+            'data' => $rows,
+            'headings' => ['Metric', 'Value'],
+            'title' => 'Sales Summary',
+        ];
+    }
+
+    /**
+     * Prepare daily report data for Excel.
+     */
+    protected function prepareDailyExcelData(array $data): array
+    {
+        $rows = [];
+
+        if (isset($data['hourly_breakdown'])) {
+            foreach ($data['hourly_breakdown'] as $hour) {
+                $rows[] = [
+                    $hour['hour'] ?? '',
+                    $hour['sales_count'] ?? 0,
+                    $hour['revenue'] ?? 0,
+                ];
+            }
+        }
+
+        return [
+            'data' => $rows,
+            'headings' => ['Hour', 'Sales Count', 'Revenue'],
+            'title' => 'Daily Sales Report',
+        ];
+    }
+
+    /**
+     * Prepare weekly report data for Excel.
+     */
+    protected function prepareWeeklyExcelData(array $data): array
+    {
+        $rows = [];
+
+        if (isset($data['daily_breakdown'])) {
+            foreach ($data['daily_breakdown'] as $day) {
+                $rows[] = [
+                    $day['date'] ?? '',
+                    $day['sales_count'] ?? 0,
+                    $day['revenue'] ?? 0,
+                ];
+            }
+        }
+
+        return [
+            'data' => $rows,
+            'headings' => ['Date', 'Sales Count', 'Revenue'],
+            'title' => 'Weekly Sales Report',
+        ];
+    }
+
+    /**
+     * Prepare monthly report data for Excel.
+     */
+    protected function prepareMonthlyExcelData(array $data): array
+    {
+        $rows = [];
+
+        if (isset($data['daily_breakdown'])) {
+            foreach ($data['daily_breakdown'] as $day) {
+                $rows[] = [
+                    $day['date'] ?? '',
+                    $day['sales_count'] ?? 0,
+                    $day['revenue'] ?? 0,
+                ];
+            }
+        }
+
+        return [
+            'data' => $rows,
+            'headings' => ['Date', 'Sales Count', 'Revenue'],
+            'title' => 'Monthly Sales Report',
+        ];
+    }
 }

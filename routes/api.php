@@ -115,6 +115,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/comparison', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'comparison'])->name('api.v1.reports.sales.comparison');
             Route::get('/hourly', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'hourly'])->name('api.v1.reports.sales.hourly');
             Route::get('/top-customers', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'topCustomers'])->name('api.v1.reports.sales.top-customers');
+            Route::get('/export', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'export'])->name('api.v1.reports.sales.export');
         });
 
         // Product Reports

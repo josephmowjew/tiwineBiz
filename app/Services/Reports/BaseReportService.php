@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Traits\HasBranchScope;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -127,5 +128,24 @@ abstract class BaseReportService
             'data' => $data,
             'generated_at' => now()->toIso8601String(),
         ];
+    }
+
+    /**
+     * Generate PDF for report data.
+     */
+    protected function generatePdf(string $view, array $data, string $filename = 'report.pdf'): \Barryvdh\DomPDF\PDF
+    {
+        $pdf = Pdf::loadView($view, $data);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf;
+    }
+
+    /**
+     * Prepare data for Excel export.
+     */
+    protected function prepareExcelData(array $data): array
+    {
+        return $data;
     }
 }
