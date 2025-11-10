@@ -415,3 +415,172 @@ test('products list is paginated', function () {
         ])
         ->assertJsonPath('meta.per_page', 15);
 });
+
+test('products can be searched by search_term in name', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    $product1 = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'name' => 'HP Laptop ProBook',
+        'created_by' => $user->id,
+    ]);
+
+    $product2 = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'name' => 'Dell Desktop Computer',
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/products?search_term=Laptop');
+
+    $response->assertOk()
+        ->assertJsonFragment(['name' => 'HP Laptop ProBook'])
+        ->assertJsonMissing(['name' => 'Dell Desktop Computer']);
+});
+
+test('products can be searched by search_term in SKU', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    $product1 = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'sku' => 'LAP-HP-001',
+        'created_by' => $user->id,
+    ]);
+
+    $product2 = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'sku' => 'DESK-DEL-002',
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/products?search_term=LAP-HP');
+
+    $response->assertOk()
+        ->assertJsonFragment(['sku' => 'LAP-HP-001'])
+        ->assertJsonMissing(['sku' => 'DESK-DEL-002']);
+});
+
+test('products can be searched by search_term in barcode', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    $product1 = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'barcode' => '1234567890123',
+        'created_by' => $user->id,
+    ]);
+
+    $product2 = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'barcode' => '9876543210987',
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/products?search_term=123456');
+
+    $response->assertOk()
+        ->assertJsonFragment(['barcode' => '1234567890123'])
+        ->assertJsonMissing(['barcode' => '9876543210987']);
+});
+
+test('products can be searched by search_term in description', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    $product1 = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'description' => 'High performance gaming laptop with RTX graphics',
+        'created_by' => $user->id,
+    ]);
+
+    $product2 = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'description' => 'Office desktop computer for productivity',
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/products?search_term=gaming');
+
+    $response->assertOk()
+        ->assertJsonFragment(['description' => 'High performance gaming laptop with RTX graphics'])
+        ->assertJsonMissing(['description' => 'Office desktop computer for productivity']);
+});
+
+test('search_term combines with pagination', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    Product::factory()->count(30)->create([
+        'shop_id' => $shop->id,
+        'name' => 'Laptop Model',
+        'created_by' => $user->id,
+    ]);
+
+    Product::factory()->count(10)->create([
+        'shop_id' => $shop->id,
+        'name' => 'Desktop Model',
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/products?search_term=Laptop&page=1&per_page=10');
+
+    $response->assertOk()
+        ->assertJsonPath('meta.per_page', 10)
+        ->assertJsonPath('meta.total', 30);
+
+    $data = $response->json('data');
+    expect($data)->toHaveCount(10);
+});
+
+test('web device receives offset pagination', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    Product::factory()->count(30)->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->withHeaders(['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0'])
+        ->getJson('/api/v1/products?per_page=20');
+
+    $response->assertOk()
+        ->assertJsonStructure([
+            'data',
+            'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+        ]);
+
+    expect($response->json('meta.current_page'))->toBe(1);
+    expect($response->json('meta.total'))->toBe(30);
+});
+
+test('mobile device receives cursor pagination', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    Product::factory()->count(30)->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->withHeaders(['User-Agent' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)'])
+        ->getJson('/api/v1/products?per_page=20');
+
+    $response->assertOk()
+        ->assertJsonStructure([
+            'data',
+            'meta' => ['per_page', 'next_cursor', 'prev_cursor', 'has_more'],
+        ]);
+
+    expect($response->json('meta.has_more'))->toBe(true);
+    expect($response->json('meta'))->not->toHaveKey('total');
+});
