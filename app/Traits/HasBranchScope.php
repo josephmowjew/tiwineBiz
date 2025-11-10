@@ -15,7 +15,7 @@ trait HasBranchScope
      */
     protected function getAccessibleBranchIds(?string $shopId = null): Collection
     {
-        $user = request()->user();
+        $user = auth()->user();
 
         if (! $user) {
             return collect();

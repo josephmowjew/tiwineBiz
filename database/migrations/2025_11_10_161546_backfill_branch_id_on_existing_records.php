@@ -26,39 +26,38 @@ return new class extends Migration
             }
 
             if (! $defaultBranch) {
-                echo "Warning: Shop '{$shop->name}' (ID: {$shop->id}) has no branches. Skipping...\n";
-
+                // echo "Warning: Shop '{$shop->name}' (ID: {$shop->id}) has no branches. Skipping...\n";
                 continue;
             }
 
             // Backfill sales.branch_id
-            $salesUpdated = DB::table('sales')
+            DB::table('sales')
                 ->where('shop_id', $shop->id)
                 ->whereNull('branch_id')
                 ->update(['branch_id' => $defaultBranch->id]);
-
-            echo "Updated {$salesUpdated} sales for shop '{$shop->name}'\n";
 
             // Backfill stock_movements.branch_id
-            $stockMovementsUpdated = DB::table('stock_movements')
+            DB::table('stock_movements')
                 ->where('shop_id', $shop->id)
                 ->whereNull('branch_id')
                 ->update(['branch_id' => $defaultBranch->id]);
-
-            echo "Updated {$stockMovementsUpdated} stock movements for shop '{$shop->name}'\n";
 
             // Note: customers.branch_id stays NULL (shop-level customers by default)
         }
 
         // Backfill product_batches.shop_id from products table
-        DB::statement('
-            UPDATE product_batches pb
-            INNER JOIN products p ON pb.product_id = p.id
-            SET pb.shop_id = p.shop_id
-            WHERE pb.shop_id IS NULL
-        ');
+        $batches = DB::table('product_batches')
+            ->whereNull('shop_id')
+            ->get();
 
-        echo "Updated product_batches.shop_id from products\n";
+        foreach ($batches as $batch) {
+            $product = DB::table('products')->where('id', $batch->product_id)->first();
+            if ($product) {
+                DB::table('product_batches')
+                    ->where('id', $batch->id)
+                    ->update(['shop_id' => $product->shop_id]);
+            }
+        }
     }
 
     /**

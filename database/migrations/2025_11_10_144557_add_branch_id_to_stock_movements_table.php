@@ -21,16 +21,18 @@ return new class extends Migration
             $table->index(['shop_id', 'branch_id', 'movement_type']);
         });
 
-        // Update movement_type enum to include branch transfer types
-        DB::statement("
-            ALTER TABLE stock_movements
-            MODIFY COLUMN movement_type ENUM(
-                'sale', 'purchase', 'return_from_customer', 'return_to_supplier',
-                'adjustment_increase', 'adjustment_decrease', 'damage', 'theft',
-                'expired', 'transfer_out', 'transfer_in', 'stocktake', 'opening_balance',
-                'branch_transfer_out', 'branch_transfer_in'
-            ) NOT NULL
-        ");
+        // Update movement_type enum to include branch transfer types (MySQL only)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("
+                ALTER TABLE stock_movements
+                MODIFY COLUMN movement_type ENUM(
+                    'sale', 'purchase', 'return_from_customer', 'return_to_supplier',
+                    'adjustment_increase', 'adjustment_decrease', 'damage', 'theft',
+                    'expired', 'transfer_out', 'transfer_in', 'stocktake', 'opening_balance',
+                    'branch_transfer_out', 'branch_transfer_in'
+                ) NOT NULL
+            ");
+        }
     }
 
     /**
@@ -38,15 +40,17 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Revert movement_type enum to original values
-        DB::statement("
-            ALTER TABLE stock_movements
-            MODIFY COLUMN movement_type ENUM(
-                'sale', 'purchase', 'return_from_customer', 'return_to_supplier',
-                'adjustment_increase', 'adjustment_decrease', 'damage', 'theft',
-                'expired', 'transfer_out', 'transfer_in', 'stocktake', 'opening_balance'
-            ) NOT NULL
-        ");
+        // Revert movement_type enum to original values (MySQL only)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("
+                ALTER TABLE stock_movements
+                MODIFY COLUMN movement_type ENUM(
+                    'sale', 'purchase', 'return_from_customer', 'return_to_supplier',
+                    'adjustment_increase', 'adjustment_decrease', 'damage', 'theft',
+                    'expired', 'transfer_out', 'transfer_in', 'stocktake', 'opening_balance'
+                ) NOT NULL
+            ");
+        }
 
         Schema::table('stock_movements', function (Blueprint $table) {
             // Drop indexes first

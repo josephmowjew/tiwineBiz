@@ -17,7 +17,7 @@ class BranchController extends Controller
     public function __construct(
         protected BranchRepositoryInterface $branchRepository
     ) {
-        $this->authorizeResource(Branch::class, 'branch');
+        //
     }
 
     /**
@@ -57,8 +57,16 @@ class BranchController extends Controller
     /**
      * Display the specified branch.
      */
-    public function show(Branch $branch): BranchResource
+    public function show(Request $request, Branch $branch): BranchResource
     {
+        // Check if user has access to this branch
+        $user = $request->user();
+        $accessibleBranchIds = $user->getAccessibleBranchIds();
+
+        if (! $accessibleBranchIds->contains($branch->id)) {
+            abort(404);
+        }
+
         $branch->load(['shop', 'manager', 'branchUsers']);
 
         return new BranchResource($branch);
@@ -69,6 +77,15 @@ class BranchController extends Controller
      */
     public function update(UpdateBranchRequest $request, Branch $branch): BranchResource
     {
+        // Check if user has access to this branch's shop (already done in UpdateBranchRequest)
+        // But also verify branch access for 404
+        $user = $request->user();
+        $accessibleBranchIds = $user->getAccessibleBranchIds();
+
+        if (! $accessibleBranchIds->contains($branch->id)) {
+            abort(404);
+        }
+
         $data = $request->validated();
 
         $branch = $this->branchRepository->update($branch->id, $data);
@@ -79,8 +96,26 @@ class BranchController extends Controller
     /**
      * Remove the specified branch.
      */
-    public function destroy(Branch $branch): JsonResponse
+    public function destroy(Request $request, Branch $branch): JsonResponse
     {
+        // Check if user has access to this branch's shop
+        $user = $request->user();
+        $accessibleBranchIds = $user->getAccessibleBranchIds();
+
+        if (! $accessibleBranchIds->contains($branch->id)) {
+            abort(404);
+        }
+
+        // Check if user is the shop owner
+        if ($branch->shop->owner_id !== $user->id) {
+            abort(403, 'Only shop owner can delete branches');
+        }
+
+        // Check if it's not the main branch
+        if ($branch->branch_type === 'main') {
+            abort(403, 'Cannot delete main branch');
+        }
+
         $this->branchRepository->delete($branch->id);
 
         return response()->json([
@@ -93,7 +128,18 @@ class BranchController extends Controller
      */
     public function assignUser(Request $request, Branch $branch): JsonResponse
     {
-        $this->authorize('assignUsers', $branch);
+        // Check if user has access to this branch
+        $user = $request->user();
+        $accessibleBranchIds = $user->getAccessibleBranchIds();
+
+        if (! $accessibleBranchIds->contains($branch->id)) {
+            abort(404);
+        }
+
+        // Check if user is shop owner or branch manager
+        if ($branch->shop->owner_id !== $user->id && $branch->manager_id !== $user->id) {
+            abort(403, 'Only shop owner or branch manager can assign users');
+        }
 
         $request->validate([
             'user_id' => ['required', 'uuid', 'exists:users,id'],
@@ -128,7 +174,18 @@ class BranchController extends Controller
      */
     public function removeUser(Request $request, Branch $branch): JsonResponse
     {
-        $this->authorize('assignUsers', $branch);
+        // Check if user has access to this branch
+        $user = $request->user();
+        $accessibleBranchIds = $user->getAccessibleBranchIds();
+
+        if (! $accessibleBranchIds->contains($branch->id)) {
+            abort(404);
+        }
+
+        // Check if user is shop owner or branch manager
+        if ($branch->shop->owner_id !== $user->id && $branch->manager_id !== $user->id) {
+            abort(403, 'Only shop owner or branch manager can remove users');
+        }
 
         $request->validate([
             'user_id' => ['required', 'uuid', 'exists:users,id'],
@@ -147,9 +204,15 @@ class BranchController extends Controller
     /**
      * Get users assigned to branch.
      */
-    public function users(Branch $branch): JsonResponse
+    public function users(Request $request, Branch $branch): JsonResponse
     {
-        $this->authorize('view', $branch);
+        // Check if user has access to this branch
+        $user = $request->user();
+        $accessibleBranchIds = $user->getAccessibleBranchIds();
+
+        if (! $accessibleBranchIds->contains($branch->id)) {
+            abort(404);
+        }
 
         $users = $this->branchRepository->getBranchUsers($branch->id);
 

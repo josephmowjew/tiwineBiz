@@ -43,11 +43,12 @@ class BranchRepository extends BaseRepository implements BranchRepositoryInterfa
             $query->where('manager_id', $filters['manager_id']);
         }
 
-        // Search by name or code
+        // Search by name, code, or city
         if (! empty($filters['search'])) {
             $query->where(function ($q) use ($filters) {
                 $q->where('name', 'like', "%{$filters['search']}%")
-                    ->orWhere('code', 'like', "%{$filters['search']}%");
+                    ->orWhere('code', 'like', "%{$filters['search']}%")
+                    ->orWhere('city', 'like', "%{$filters['search']}%");
             });
         }
 

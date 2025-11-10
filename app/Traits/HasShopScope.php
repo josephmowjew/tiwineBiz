@@ -13,7 +13,7 @@ trait HasShopScope
      */
     protected function getAccessibleShopIds(): Collection
     {
-        $user = request()->user();
+        $user = auth()->user();
 
         if (! $user) {
             return collect();
