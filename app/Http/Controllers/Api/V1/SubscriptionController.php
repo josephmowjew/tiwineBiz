@@ -6,72 +6,38 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Subscription\StoreSubscriptionRequest;
 use App\Http\Requests\Subscription\UpdateSubscriptionRequest;
 use App\Http\Resources\SubscriptionResource;
-use App\Models\Shop;
-use App\Models\Subscription;
+use App\Repositories\Contracts\SubscriptionRepositoryInterface;
 use Illuminate\Http\Request;
 
 class SubscriptionController extends Controller
 {
+    public function __construct(
+        protected SubscriptionRepositoryInterface $subscriptionRepository
+    ) {}
+
     /**
      * Display a listing of subscriptions.
      */
     public function index(Request $request)
     {
-        $user = $request->user();
+        // Prepare filters from request
+        $filters = [
+            'shop_id' => $request->input('shop_id'),
+            'plan' => $request->input('plan'),
+            'status' => $request->input('status'),
+            'billing_cycle' => $request->input('billing_cycle'),
+            'expiring_soon' => $request->boolean('expiring_soon'),
+            'expired' => $request->boolean('expired'),
+            'pending_cancellation' => $request->boolean('pending_cancellation'),
+            'search' => $request->input('search'),
+            'search_term' => $request->input('search_term'),
+        ];
 
-        // Get shops accessible by this user
-        $shopIds = Shop::where('owner_id', $user->id)
-            ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id))
-            ->pluck('id');
-
-        $query = Subscription::query()
-            ->whereIn('shop_id', $shopIds);
-
-        // Filter by shop
-        if ($request->filled('shop_id')) {
-            $query->where('shop_id', $request->shop_id);
-        }
-
-        // Filter by plan
-        if ($request->filled('plan')) {
-            $query->where('plan', $request->plan);
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Filter by billing cycle
-        if ($request->filled('billing_cycle')) {
-            $query->where('billing_cycle', $request->billing_cycle);
-        }
-
-        // Filter expiring soon (within next 7 days)
-        if ($request->filled('expiring_soon') && $request->boolean('expiring_soon')) {
-            $query->where('status', 'active')
-                ->whereBetween('current_period_end', [now(), now()->addDays(7)]);
-        }
-
-        // Filter expired
-        if ($request->filled('expired') && $request->boolean('expired')) {
-            $query->where('status', 'expired')
-                ->where('current_period_end', '<', now());
-        }
-
-        // Filter cancelled but still active
-        if ($request->filled('pending_cancellation') && $request->boolean('pending_cancellation')) {
-            $query->where('cancel_at_period_end', true)
-                ->where('current_period_end', '>', now());
-        }
-
-        // Eager load relationships
-        $query->with(['shop', 'payments']);
-
-        // Sort by current_period_end descending by default
-        $query->orderBy('current_period_end', 'desc')->orderBy('created_at', 'desc');
-
-        $subscriptions = $query->paginate($request->per_page ?? 15);
+        // Use repository with device-aware pagination
+        $subscriptions = $this->subscriptionRepository->autoPaginate(
+            $request->input('per_page'),
+            $filters
+        );
 
         return SubscriptionResource::collection($subscriptions);
     }
@@ -81,14 +47,7 @@ class SubscriptionController extends Controller
      */
     public function store(StoreSubscriptionRequest $request)
     {
-        $user = $request->user();
         $data = $request->validated();
-
-        // Verify shop belongs to user
-        $shop = Shop::where('id', $data['shop_id'])
-            ->where(fn ($q) => $q->where('owner_id', $user->id)
-                ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id)))
-            ->firstOrFail();
 
         // Set started_at if not provided
         if (! isset($data['started_at'])) {
@@ -110,40 +69,51 @@ class SubscriptionController extends Controller
             $data['cancel_at_period_end'] = false;
         }
 
-        $subscription = Subscription::create($data);
+        // Create subscription using repository
+        $subscription = $this->subscriptionRepository->create($data);
 
-        return new SubscriptionResource($subscription->load(['shop', 'payments']));
+        // Load relationships for response
+        $subscription->load(['shop', 'payments']);
+
+        return new SubscriptionResource($subscription);
     }
 
     /**
      * Display the specified subscription.
      */
-    public function show(Request $request, Subscription $subscription)
+    public function show(Request $request, string $id)
     {
-        $user = $request->user();
+        // Use repository to find subscription with shop scope
+        $filters = ['id' => $id];
+        $subscriptions = $this->subscriptionRepository->all($filters);
+        $subscription = $subscriptions->first();
 
-        // Verify subscription belongs to user's shop
-        Shop::where('id', $subscription->shop_id)
-            ->where(fn ($q) => $q->where('owner_id', $user->id)
-                ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id)))
-            ->firstOrFail();
+        if (! $subscription) {
+            return response()->json([
+                'message' => 'Subscription not found or you do not have access to it.',
+            ], 404);
+        }
 
-        return new SubscriptionResource($subscription->load(['shop', 'payments']));
+        return new SubscriptionResource($subscription);
     }
 
     /**
      * Update the specified subscription.
      */
-    public function update(UpdateSubscriptionRequest $request, Subscription $subscription)
+    public function update(UpdateSubscriptionRequest $request, string $id)
     {
-        $user = $request->user();
         $data = $request->validated();
 
-        // Verify subscription belongs to user's shop
-        Shop::where('id', $subscription->shop_id)
-            ->where(fn ($q) => $q->where('owner_id', $user->id)
-                ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id)))
-            ->firstOrFail();
+        // Verify subscription exists and user has access
+        $filters = ['id' => $id];
+        $subscriptions = $this->subscriptionRepository->all($filters);
+        $existingSubscription = $subscriptions->first();
+
+        if (! $existingSubscription) {
+            return response()->json([
+                'message' => 'Subscription not found or you do not have access to it.',
+            ], 404);
+        }
 
         // Handle cancellation logic
         if (isset($data['status']) && $data['status'] === 'cancelled') {
@@ -151,34 +121,41 @@ class SubscriptionController extends Controller
 
             // If cancel_at_period_end is true, don't change status to cancelled yet
             if (isset($data['cancel_at_period_end']) && $data['cancel_at_period_end']) {
-                $data['status'] = $subscription->status; // Keep current status
+                $data['status'] = $existingSubscription->status; // Keep current status
             }
         }
 
         // Handle period renewal
-        if (isset($data['current_period_end']) && $data['current_period_end'] > $subscription->current_period_end) {
-            $data['current_period_start'] = $subscription->current_period_end;
+        if (isset($data['current_period_end']) && $data['current_period_end'] > $existingSubscription->current_period_end) {
+            $data['current_period_start'] = $existingSubscription->current_period_end;
         }
 
-        $subscription->update($data);
+        // Update subscription using repository
+        $subscription = $this->subscriptionRepository->update($id, $data);
 
-        return new SubscriptionResource($subscription->load(['shop', 'payments']));
+        // Load relationships for response
+        $subscription->load(['shop', 'payments']);
+
+        return new SubscriptionResource($subscription);
     }
 
     /**
      * Remove the specified subscription.
      */
-    public function destroy(Request $request, Subscription $subscription)
+    public function destroy(Request $request, string $id)
     {
-        $user = $request->user();
+        // Verify subscription exists and user has access
+        $filters = ['id' => $id];
+        $subscriptions = $this->subscriptionRepository->all($filters);
 
-        // Verify subscription belongs to user's shop
-        Shop::where('id', $subscription->shop_id)
-            ->where(fn ($q) => $q->where('owner_id', $user->id)
-                ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id)))
-            ->firstOrFail();
+        if ($subscriptions->isEmpty()) {
+            return response()->json([
+                'message' => 'Subscription not found or you do not have access to it.',
+            ], 404);
+        }
 
-        $subscription->delete();
+        // Delete subscription using repository
+        $this->subscriptionRepository->delete($id);
 
         return response()->json(['message' => 'Subscription deleted successfully'], 200);
     }

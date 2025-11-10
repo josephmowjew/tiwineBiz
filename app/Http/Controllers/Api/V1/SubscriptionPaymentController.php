@@ -5,75 +5,40 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SubscriptionPayment\StoreSubscriptionPaymentRequest;
 use App\Http\Resources\SubscriptionPaymentResource;
-use App\Models\Shop;
 use App\Models\SubscriptionPayment;
+use App\Repositories\Contracts\SubscriptionPaymentRepositoryInterface;
 use Illuminate\Http\Request;
 
 class SubscriptionPaymentController extends Controller
 {
+    public function __construct(
+        protected SubscriptionPaymentRepositoryInterface $subscriptionPaymentRepository
+    ) {}
+
     /**
      * Display a listing of subscription payments.
      */
     public function index(Request $request)
     {
-        $user = $request->user();
+        // Prepare filters from request
+        $filters = [
+            'shop_id' => $request->input('shop_id'),
+            'subscription_id' => $request->input('subscription_id'),
+            'status' => $request->input('status'),
+            'payment_method' => $request->input('payment_method'),
+            'from_date' => $request->input('from_date'),
+            'to_date' => $request->input('to_date'),
+            'unconfirmed' => $request->boolean('unconfirmed'),
+            'awaiting_confirmation' => $request->boolean('awaiting_confirmation'),
+            'search' => $request->input('search'),
+            'search_term' => $request->input('search_term'),
+        ];
 
-        // Get shops accessible by this user
-        $shopIds = Shop::where('owner_id', $user->id)
-            ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id))
-            ->pluck('id');
-
-        $query = SubscriptionPayment::query()
-            ->whereIn('shop_id', $shopIds);
-
-        // Filter by shop
-        if ($request->filled('shop_id')) {
-            $query->where('shop_id', $request->shop_id);
-        }
-
-        // Filter by subscription
-        if ($request->filled('subscription_id')) {
-            $query->where('subscription_id', $request->subscription_id);
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Filter by payment method
-        if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->payment_method);
-        }
-
-        // Filter by payment date range
-        if ($request->filled('from_date')) {
-            $query->whereDate('payment_date', '>=', $request->from_date);
-        }
-
-        if ($request->filled('to_date')) {
-            $query->whereDate('payment_date', '<=', $request->to_date);
-        }
-
-        // Filter unconfirmed payments
-        if ($request->filled('unconfirmed') && $request->boolean('unconfirmed')) {
-            $query->where('status', 'pending')
-                ->whereNull('confirmed_at');
-        }
-
-        // Filter payments awaiting confirmation
-        if ($request->filled('awaiting_confirmation') && $request->boolean('awaiting_confirmation')) {
-            $query->where('status', 'pending')
-                ->whereNotNull('payment_date');
-        }
-
-        // Eager load relationships
-        $query->with(['subscription', 'shop', 'confirmedBy']);
-
-        // Sort by payment_date descending by default
-        $query->orderBy('payment_date', 'desc')->orderBy('created_at', 'desc');
-
-        $payments = $query->paginate($request->per_page ?? 15);
+        // Use repository with device-aware pagination
+        $payments = $this->subscriptionPaymentRepository->autoPaginate(
+            $request->input('per_page'),
+            $filters
+        );
 
         return SubscriptionPaymentResource::collection($payments);
     }
@@ -85,12 +50,6 @@ class SubscriptionPaymentController extends Controller
     {
         $user = $request->user();
         $data = $request->validated();
-
-        // Verify shop belongs to user
-        $shop = Shop::where('id', $data['shop_id'])
-            ->where(fn ($q) => $q->where('owner_id', $user->id)
-                ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id)))
-            ->firstOrFail();
 
         // Auto-generate payment number if not provided
         if (! isset($data['payment_number'])) {
@@ -119,24 +78,31 @@ class SubscriptionPaymentController extends Controller
             $data['payment_date'] = now();
         }
 
-        $payment = SubscriptionPayment::create($data);
+        // Create payment using repository
+        $payment = $this->subscriptionPaymentRepository->create($data);
 
-        return new SubscriptionPaymentResource($payment->load(['subscription', 'shop', 'confirmedBy']));
+        // Load relationships for response
+        $payment->load(['subscription', 'shop', 'confirmedBy']);
+
+        return new SubscriptionPaymentResource($payment);
     }
 
     /**
      * Display the specified subscription payment.
      */
-    public function show(Request $request, SubscriptionPayment $subscriptionPayment)
+    public function show(Request $request, string $id)
     {
-        $user = $request->user();
+        // Use repository to find payment with shop scope
+        $filters = ['id' => $id];
+        $payments = $this->subscriptionPaymentRepository->all($filters);
+        $payment = $payments->first();
 
-        // Verify payment belongs to user's shop
-        Shop::where('id', $subscriptionPayment->shop_id)
-            ->where(fn ($q) => $q->where('owner_id', $user->id)
-                ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id)))
-            ->firstOrFail();
+        if (! $payment) {
+            return response()->json([
+                'message' => 'Subscription payment not found or you do not have access to it.',
+            ], 404);
+        }
 
-        return new SubscriptionPaymentResource($subscriptionPayment->load(['subscription', 'shop', 'confirmedBy']));
+        return new SubscriptionPaymentResource($payment);
     }
 }

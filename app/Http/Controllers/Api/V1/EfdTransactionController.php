@@ -5,81 +5,40 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\EfdTransaction\StoreEfdTransactionRequest;
 use App\Http\Resources\EfdTransactionResource;
-use App\Models\EfdTransaction;
-use App\Models\Shop;
+use App\Repositories\Contracts\EfdTransactionRepositoryInterface;
 use Illuminate\Http\Request;
 
 class EfdTransactionController extends Controller
 {
+    public function __construct(
+        protected EfdTransactionRepositoryInterface $efdTransactionRepository
+    ) {}
+
     /**
      * Display a listing of EFD transactions.
      */
     public function index(Request $request)
     {
-        $user = $request->user();
+        // Prepare filters from request
+        $filters = [
+            'shop_id' => $request->input('shop_id'),
+            'efd_device_id' => $request->input('efd_device_id'),
+            'sale_id' => $request->input('sale_id'),
+            'transmission_status' => $request->input('transmission_status'),
+            'fiscal_receipt_number' => $request->input('fiscal_receipt_number'),
+            'pending_retry' => $request->boolean('pending_retry'),
+            'retry_exhausted' => $request->boolean('retry_exhausted'),
+            'from_date' => $request->input('from_date'),
+            'to_date' => $request->input('to_date'),
+            'search' => $request->input('search'),
+            'search_term' => $request->input('search_term'),
+        ];
 
-        // Get shops accessible by this user
-        $shopIds = Shop::where('owner_id', $user->id)
-            ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id))
-            ->pluck('id');
-
-        $query = EfdTransaction::query()
-            ->whereIn('shop_id', $shopIds);
-
-        // Filter by shop
-        if ($request->filled('shop_id')) {
-            $query->where('shop_id', $request->shop_id);
-        }
-
-        // Filter by EFD device
-        if ($request->filled('efd_device_id')) {
-            $query->where('efd_device_id', $request->efd_device_id);
-        }
-
-        // Filter by sale
-        if ($request->filled('sale_id')) {
-            $query->where('sale_id', $request->sale_id);
-        }
-
-        // Filter by transmission status
-        if ($request->filled('transmission_status')) {
-            $query->where('transmission_status', $request->transmission_status);
-        }
-
-        // Filter by fiscal receipt number
-        if ($request->filled('fiscal_receipt_number')) {
-            $query->where('fiscal_receipt_number', 'like', '%'.$request->fiscal_receipt_number.'%');
-        }
-
-        // Filter transactions pending retry
-        if ($request->filled('pending_retry') && $request->boolean('pending_retry')) {
-            $query->whereNotNull('next_retry_at')
-                ->where('next_retry_at', '<=', now())
-                ->where('transmission_status', '!=', 'success');
-        }
-
-        // Filter failed transactions with exhausted retries
-        if ($request->filled('retry_exhausted') && $request->boolean('retry_exhausted')) {
-            $query->where('transmission_status', 'failed')
-                ->where('retry_count', '>=', 3);
-        }
-
-        // Filter by transmitted date range
-        if ($request->filled('from_date')) {
-            $query->whereDate('transmitted_at', '>=', $request->from_date);
-        }
-
-        if ($request->filled('to_date')) {
-            $query->whereDate('transmitted_at', '<=', $request->to_date);
-        }
-
-        // Eager load relationships
-        $query->with(['shop', 'sale']);
-
-        // Sort by transmitted_at descending by default
-        $query->orderBy('transmitted_at', 'desc')->orderBy('created_at', 'desc');
-
-        $transactions = $query->paginate($request->per_page ?? 15);
+        // Use repository with device-aware pagination
+        $transactions = $this->efdTransactionRepository->autoPaginate(
+            $request->input('per_page'),
+            $filters
+        );
 
         return EfdTransactionResource::collection($transactions);
     }
@@ -89,14 +48,7 @@ class EfdTransactionController extends Controller
      */
     public function store(StoreEfdTransactionRequest $request)
     {
-        $user = $request->user();
         $data = $request->validated();
-
-        // Verify shop belongs to user
-        $shop = Shop::where('id', $data['shop_id'])
-            ->where(fn ($q) => $q->where('owner_id', $user->id)
-                ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id)))
-            ->firstOrFail();
 
         // Set timestamps if not provided
         if (! isset($data['created_at'])) {
@@ -122,24 +74,31 @@ class EfdTransactionController extends Controller
             }
         }
 
-        $transaction = EfdTransaction::create($data);
+        // Create transaction using repository
+        $transaction = $this->efdTransactionRepository->create($data);
 
-        return new EfdTransactionResource($transaction->load(['shop', 'sale']));
+        // Load relationships for response
+        $transaction->load(['shop', 'sale']);
+
+        return new EfdTransactionResource($transaction);
     }
 
     /**
      * Display the specified EFD transaction.
      */
-    public function show(Request $request, EfdTransaction $efdTransaction)
+    public function show(Request $request, string $id)
     {
-        $user = $request->user();
+        // Use repository to find transaction with shop scope
+        $filters = ['id' => $id];
+        $transactions = $this->efdTransactionRepository->all($filters);
+        $transaction = $transactions->first();
 
-        // Verify transaction belongs to user's shop
-        $shop = Shop::where('id', $efdTransaction->shop_id)
-            ->where(fn ($q) => $q->where('owner_id', $user->id)
-                ->orWhereHas('users', fn ($q) => $q->where('user_id', $user->id)))
-            ->firstOrFail();
+        if (! $transaction) {
+            return response()->json([
+                'message' => 'EFD transaction not found or you do not have access to it.',
+            ], 404);
+        }
 
-        return new EfdTransactionResource($efdTransaction->load(['shop', 'sale']));
+        return new EfdTransactionResource($transaction);
     }
 }
