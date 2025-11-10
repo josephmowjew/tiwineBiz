@@ -91,5 +91,49 @@ Route::prefix('v1')->group(function () {
         // Subscription Payment Management (Immutable - no updates or deletes)
         Route::apiResource('subscription-payments', \App\Http\Controllers\Api\V1\SubscriptionPaymentController::class)->only(['index', 'store', 'show']);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Reports & Analytics Routes
+        |--------------------------------------------------------------------------
+        */
+
+        // Dashboard
+        Route::prefix('dashboard')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\V1\DashboardController::class, 'index'])->name('api.v1.dashboard.index');
+            Route::get('/sales', [\App\Http\Controllers\Api\V1\DashboardController::class, 'salesOverview'])->name('api.v1.dashboard.sales');
+            Route::get('/inventory', [\App\Http\Controllers\Api\V1\DashboardController::class, 'inventoryOverview'])->name('api.v1.dashboard.inventory');
+            Route::get('/products', [\App\Http\Controllers\Api\V1\DashboardController::class, 'productInsights'])->name('api.v1.dashboard.products');
+            Route::get('/quick-stats', [\App\Http\Controllers\Api\V1\DashboardController::class, 'quickStats'])->name('api.v1.dashboard.quick-stats');
+        });
+
+        // Sales Reports
+        Route::prefix('reports/sales')->group(function () {
+            Route::get('/summary', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'summary'])->name('api.v1.reports.sales.summary');
+            Route::get('/daily', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'daily'])->name('api.v1.reports.sales.daily');
+            Route::get('/weekly', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'weekly'])->name('api.v1.reports.sales.weekly');
+            Route::get('/monthly', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'monthly'])->name('api.v1.reports.sales.monthly');
+            Route::get('/comparison', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'comparison'])->name('api.v1.reports.sales.comparison');
+            Route::get('/hourly', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'hourly'])->name('api.v1.reports.sales.hourly');
+            Route::get('/top-customers', [\App\Http\Controllers\Api\V1\SalesReportController::class, 'topCustomers'])->name('api.v1.reports.sales.top-customers');
+        });
+
+        // Product Reports
+        Route::prefix('reports/products')->group(function () {
+            Route::get('/top-selling', [\App\Http\Controllers\Api\V1\ProductReportController::class, 'topSelling'])->name('api.v1.reports.products.top-selling');
+            Route::get('/slow-moving', [\App\Http\Controllers\Api\V1\ProductReportController::class, 'slowMoving'])->name('api.v1.reports.products.slow-moving');
+            Route::get('/{product}/performance', [\App\Http\Controllers\Api\V1\ProductReportController::class, 'performance'])->name('api.v1.reports.products.performance');
+            Route::get('/low-stock', [\App\Http\Controllers\Api\V1\ProductReportController::class, 'lowStock'])->name('api.v1.reports.products.low-stock');
+            Route::get('/category-performance', [\App\Http\Controllers\Api\V1\ProductReportController::class, 'categoryPerformance'])->name('api.v1.reports.products.category-performance');
+        });
+
+        // Inventory Reports
+        Route::prefix('reports/inventory')->group(function () {
+            Route::get('/valuation', [\App\Http\Controllers\Api\V1\InventoryReportController::class, 'valuation'])->name('api.v1.reports.inventory.valuation');
+            Route::get('/movements', [\App\Http\Controllers\Api\V1\InventoryReportController::class, 'movements'])->name('api.v1.reports.inventory.movements');
+            Route::get('/aging', [\App\Http\Controllers\Api\V1\InventoryReportController::class, 'aging'])->name('api.v1.reports.inventory.aging');
+            Route::get('/alerts', [\App\Http\Controllers\Api\V1\InventoryReportController::class, 'alerts'])->name('api.v1.reports.inventory.alerts');
+            Route::get('/turnover', [\App\Http\Controllers\Api\V1\InventoryReportController::class, 'turnover'])->name('api.v1.reports.inventory.turnover');
+        });
+
     });
 });
