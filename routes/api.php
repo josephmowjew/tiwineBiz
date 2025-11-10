@@ -135,5 +135,18 @@ Route::prefix('v1')->group(function () {
             Route::get('/turnover', [\App\Http\Controllers\Api\V1\InventoryReportController::class, 'turnover'])->name('api.v1.reports.inventory.turnover');
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | Receipt Routes
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('receipts')->group(function () {
+            Route::get('/{sale}/view', [\App\Http\Controllers\Api\V1\ReceiptController::class, 'view'])->name('api.v1.receipts.view');
+            Route::get('/{sale}/download', [\App\Http\Controllers\Api\V1\ReceiptController::class, 'download'])->name('api.v1.receipts.download');
+            Route::get('/{sale}/html', [\App\Http\Controllers\Api\V1\ReceiptController::class, 'html'])->name('api.v1.receipts.html');
+            Route::get('/{sale}/print', [\App\Http\Controllers\Api\V1\ReceiptController::class, 'print'])->name('api.v1.receipts.print');
+            Route::post('/{sale}/email', [\App\Http\Controllers\Api\V1\ReceiptController::class, 'email'])->name('api.v1.receipts.email');
+        });
+
     });
 });
