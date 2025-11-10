@@ -39,6 +39,12 @@ Route::prefix('v1')->group(function () {
         // Shop Management
         Route::apiResource('shops', \App\Http\Controllers\Api\V1\ShopController::class);
 
+        // Branch Management
+        Route::apiResource('branches', \App\Http\Controllers\Api\V1\BranchController::class);
+        Route::post('branches/{branch}/users', [\App\Http\Controllers\Api\V1\BranchController::class, 'assignUser']);
+        Route::delete('branches/{branch}/users', [\App\Http\Controllers\Api\V1\BranchController::class, 'removeUser']);
+        Route::get('branches/{branch}/users', [\App\Http\Controllers\Api\V1\BranchController::class, 'users']);
+
         // Product Management
         Route::apiResource('products', \App\Http\Controllers\Api\V1\ProductController::class);
 
