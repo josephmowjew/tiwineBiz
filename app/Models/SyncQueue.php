@@ -11,6 +11,8 @@ class SyncQueue extends Model
 {
     use HasFactory, HasUuids;
 
+    protected $table = 'sync_queue';
+
     protected $fillable = [
         'shop_id',
         'user_id',

@@ -148,5 +148,22 @@ Route::prefix('v1')->group(function () {
             Route::post('/{sale}/email', [\App\Http\Controllers\Api\V1\ReceiptController::class, 'email'])->name('api.v1.receipts.email');
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | Sync Routes (Offline Support)
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('sync')->group(function () {
+            Route::post('/push', [\App\Http\Controllers\Api\V1\SyncController::class, 'push'])->name('api.v1.sync.push');
+            Route::post('/pull', [\App\Http\Controllers\Api\V1\SyncController::class, 'pull'])->name('api.v1.sync.pull');
+            Route::get('/status', [\App\Http\Controllers\Api\V1\SyncController::class, 'status'])->name('api.v1.sync.status');
+            Route::get('/pending', [\App\Http\Controllers\Api\V1\SyncController::class, 'pending'])->name('api.v1.sync.pending');
+            Route::get('/conflicts', [\App\Http\Controllers\Api\V1\SyncController::class, 'conflicts'])->name('api.v1.sync.conflicts');
+            Route::post('/conflicts/{queueItem}/resolve', [\App\Http\Controllers\Api\V1\SyncController::class, 'resolveConflict'])->name('api.v1.sync.resolve');
+            Route::post('/{queueItem}/retry', [\App\Http\Controllers\Api\V1\SyncController::class, 'retry'])->name('api.v1.sync.retry');
+            Route::delete('/{queueItem}', [\App\Http\Controllers\Api\V1\SyncController::class, 'delete'])->name('api.v1.sync.delete');
+            Route::get('/history', [\App\Http\Controllers\Api\V1\SyncController::class, 'history'])->name('api.v1.sync.history');
+        });
+
     });
 });
