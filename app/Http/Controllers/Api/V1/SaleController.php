@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Sale\RefundSaleRequest;
 use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Requests\Sale\UpdateSaleRequest;
 use App\Http\Resources\SaleResource;
@@ -375,6 +376,145 @@ class SaleController extends Controller
 
             return response()->json([
                 'message' => 'Failed to cancel sale.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Process a full or partial refund for a sale.
+     */
+    public function refund(RefundSaleRequest $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+
+        // Get shop IDs the user has access to
+        $shopIds = $user->shops()
+            ->pluck('shops.id')
+            ->merge([$user->ownedShops()->pluck('id')])
+            ->flatten()
+            ->unique()
+            ->values();
+
+        $sale = Sale::query()
+            ->where('id', $id)
+            ->whereIn('shop_id', $shopIds)
+            ->with('items.product')
+            ->first();
+
+        if (! $sale) {
+            return response()->json([
+                'message' => 'Sale not found or you do not have access to it.',
+            ], 404);
+        }
+
+        // Prevent refunding cancelled sales
+        if ($sale->cancelled_at) {
+            return response()->json([
+                'message' => 'Cannot refund a cancelled sale.',
+            ], 422);
+        }
+
+        // Prevent refunding already refunded sales
+        if ($sale->refunded_at) {
+            return response()->json([
+                'message' => 'This sale has already been refunded.',
+            ], 422);
+        }
+
+        // Validate refund amount doesn't exceed total amount
+        if ($request->refund_amount > $sale->total_amount) {
+            return response()->json([
+                'message' => 'Refund amount cannot exceed the sale total amount.',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // If items are provided, process partial refund by restocking specific items
+            if ($request->has('items') && ! empty($request->items)) {
+                foreach ($request->items as $refundItem) {
+                    $saleItem = SaleItem::where('id', $refundItem['sale_item_id'])
+                        ->where('sale_id', $sale->id)
+                        ->first();
+
+                    if (! $saleItem) {
+                        DB::rollBack();
+
+                        return response()->json([
+                            'message' => "Sale item {$refundItem['sale_item_id']} not found in this sale.",
+                        ], 404);
+                    }
+
+                    // Validate quantity doesn't exceed sold quantity
+                    if ($refundItem['quantity'] > $saleItem->quantity) {
+                        DB::rollBack();
+
+                        return response()->json([
+                            'message' => "Refund quantity for item {$saleItem->product_name} cannot exceed sold quantity of {$saleItem->quantity}.",
+                        ], 422);
+                    }
+
+                    // Restore product quantities proportional to refund
+                    if ($saleItem->product) {
+                        $saleItem->product->increment('quantity', $refundItem['quantity']);
+                        $saleItem->product->decrement('total_sold', $refundItem['quantity']);
+                        // Calculate proportional revenue to deduct
+                        $proportionalRevenue = ($saleItem->total / $saleItem->quantity) * $refundItem['quantity'];
+                        $saleItem->product->decrement('total_revenue', $proportionalRevenue);
+                    }
+                }
+            } else {
+                // Full refund - restore all product quantities
+                foreach ($sale->items as $item) {
+                    if ($item->product) {
+                        $item->product->increment('quantity', $item->quantity);
+                        $item->product->decrement('total_sold', $item->quantity);
+                        $item->product->decrement('total_revenue', $item->total);
+                    }
+                }
+            }
+
+            // Mark sale as refunded
+            $sale->update([
+                'refunded_at' => now(),
+                'refund_amount' => $request->refund_amount,
+            ]);
+
+            // Store refund metadata in internal_notes
+            $refundMetadata = [
+                'refund_date' => now()->toDateTimeString(),
+                'refund_amount' => $request->refund_amount,
+                'refund_method' => $request->refund_method,
+                'refund_reason' => $request->refund_reason,
+                'refund_notes' => $request->notes,
+                'refunded_by' => $user->id,
+                'refund_items' => $request->items ?? null,
+            ];
+
+            $sale->update([
+                'internal_notes' => json_encode($refundMetadata),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Sale refunded successfully.',
+                'data' => [
+                    'sale_id' => $sale->id,
+                    'sale_number' => $sale->sale_number,
+                    'refund_amount' => $request->refund_amount,
+                    'refund_method' => $request->refund_method,
+                    'refunded_at' => $sale->refunded_at,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to refund sale.',
                 'error' => $e->getMessage(),
             ], 500);
         }
