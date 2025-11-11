@@ -57,6 +57,15 @@ Route::prefix('v1')->group(function () {
         // Role Management
         Route::apiResource('roles', \App\Http\Controllers\Api\V1\RoleController::class);
 
+        // Shop Invitation Management
+        Route::prefix('shop-invitations')->group(function () {
+            Route::post('/send', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'send'])->name('api.v1.shop-invitations.send');
+            Route::post('/{token}/accept', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'accept'])->name('api.v1.shop-invitations.accept');
+            Route::post('/{token}/decline', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'decline'])->name('api.v1.shop-invitations.decline');
+            Route::get('/pending', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'pending'])->name('api.v1.shop-invitations.pending');
+            Route::delete('/{shopId}/{userId}', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'cancel'])->name('api.v1.shop-invitations.cancel');
+        });
+
         // Branch Management
         Route::apiResource('branches', \App\Http\Controllers\Api\V1\BranchController::class);
         Route::post('branches/{branch}/users', [\App\Http\Controllers\Api\V1\BranchController::class, 'assignUser']);
