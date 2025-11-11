@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Product\AdjustStockRequest;
 use App\Http\Requests\Product\ImportProductsRequest;
 use App\Http\Requests\Product\StoreProductRequest;
+use App\Http\Requests\Product\TransferStockRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Http\Requests\Product\UploadImageRequest;
 use App\Http\Resources\ProductResource;
 use App\Imports\ProductsImport;
+use App\Models\Branch;
 use App\Models\StockMovement;
 use App\Repositories\Contracts\ProductRepositoryInterface;
 use Illuminate\Http\JsonResponse;
@@ -457,6 +459,120 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to import products.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Transfer stock between branches.
+     *
+     * Creates two stock movements (transfer_out and transfer_in) and updates product quantity.
+     * This is a transaction-safe operation.
+     */
+    public function transferStock(TransferStockRequest $request, string $id): JsonResponse
+    {
+        // Verify product exists and user has access
+        $filters = ['id' => $id];
+        $products = $this->productRepository->all($filters);
+
+        if ($products->isEmpty()) {
+            return response()->json([
+                'message' => 'Product not found or you do not have access to it.',
+            ], 404);
+        }
+
+        $product = $products->first();
+        $user = $request->user();
+
+        // Verify both branches belong to the same shop as the product
+        $fromBranch = Branch::where('id', $request->from_branch_id)
+            ->where('shop_id', $product->shop_id)
+            ->first();
+
+        $toBranch = Branch::where('id', $request->to_branch_id)
+            ->where('shop_id', $product->shop_id)
+            ->first();
+
+        if (! $fromBranch) {
+            return response()->json([
+                'message' => 'Source branch not found or does not belong to this product\'s shop.',
+            ], 404);
+        }
+
+        if (! $toBranch) {
+            return response()->json([
+                'message' => 'Destination branch not found or does not belong to this product\'s shop.',
+            ], 404);
+        }
+
+        // Use transaction to ensure data consistency
+        DB::beginTransaction();
+
+        try {
+            $currentStock = $product->quantity;
+
+            // Create transfer_out stock movement (decreases stock)
+            $transferOutMovement = StockMovement::create([
+                'shop_id' => $product->shop_id,
+                'branch_id' => $fromBranch->id,
+                'product_id' => $product->id,
+                'movement_type' => 'transfer_out',
+                'quantity' => $request->quantity,
+                'quantity_before' => $currentStock,
+                'quantity_after' => $currentStock, // Stock is shop-level, not branch-level
+                'reference_type' => 'transfer',
+                'reason' => $request->reason,
+                'notes' => $request->notes,
+                'from_location' => $fromBranch->name,
+                'to_location' => $toBranch->name,
+                'created_by' => $user->id,
+                'created_at' => now(),
+            ]);
+
+            // Create transfer_in stock movement (increases stock)
+            $transferInMovement = StockMovement::create([
+                'shop_id' => $product->shop_id,
+                'branch_id' => $toBranch->id,
+                'product_id' => $product->id,
+                'movement_type' => 'transfer_in',
+                'quantity' => $request->quantity,
+                'quantity_before' => $currentStock,
+                'quantity_after' => $currentStock, // Stock is shop-level, not branch-level
+                'reference_type' => 'transfer',
+                'reference_id' => $transferOutMovement->id, // Link to the outgoing transfer
+                'reason' => $request->reason,
+                'notes' => $request->notes,
+                'from_location' => $fromBranch->name,
+                'to_location' => $toBranch->name,
+                'created_by' => $user->id,
+                'created_at' => now(),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Stock transferred successfully between branches.',
+                'data' => [
+                    'product_id' => $product->id,
+                    'from_branch' => [
+                        'id' => $fromBranch->id,
+                        'name' => $fromBranch->name,
+                    ],
+                    'to_branch' => [
+                        'id' => $toBranch->id,
+                        'name' => $toBranch->name,
+                    ],
+                    'quantity_transferred' => $request->quantity,
+                    'transfer_out_movement_id' => $transferOutMovement->id,
+                    'transfer_in_movement_id' => $transferInMovement->id,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to transfer stock.',
                 'error' => $e->getMessage(),
             ], 500);
         }
