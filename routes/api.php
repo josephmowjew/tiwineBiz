@@ -54,6 +54,9 @@ Route::prefix('v1')->group(function () {
         // Shop Management
         Route::apiResource('shops', \App\Http\Controllers\Api\V1\ShopController::class);
 
+        // Role Management
+        Route::apiResource('roles', \App\Http\Controllers\Api\V1\RoleController::class);
+
         // Branch Management
         Route::apiResource('branches', \App\Http\Controllers\Api\V1\BranchController::class);
         Route::post('branches/{branch}/users', [\App\Http\Controllers\Api\V1\BranchController::class, 'assignUser']);
