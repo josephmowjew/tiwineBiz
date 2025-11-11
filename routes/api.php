@@ -23,11 +23,15 @@ Route::prefix('v1')->group(function () {
         Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('api.v1.auth.forgot-password');
         Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('api.v1.auth.reset-password');
 
+        // Email verification (public route with signed URL)
+        Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('api.v1.auth.verify-email');
+
         // Protected routes
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('/logout', [AuthController::class, 'logout'])->name('api.v1.auth.logout');
             Route::get('/user', [AuthController::class, 'user'])->name('api.v1.auth.user');
             Route::put('/change-password', [AuthController::class, 'changePassword'])->name('api.v1.auth.change-password');
+            Route::post('/email/resend', [AuthController::class, 'sendVerificationEmail'])->name('api.v1.auth.resend-verification');
         });
     });
 

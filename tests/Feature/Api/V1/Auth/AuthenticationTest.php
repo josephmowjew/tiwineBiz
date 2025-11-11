@@ -3,11 +3,13 @@
 namespace Tests\Feature\Api\V1\Auth;
 
 use App\Models\User;
+use App\Notifications\VerifyEmailNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -400,5 +402,155 @@ class AuthenticationTest extends TestCase
         // Should only have 1 token left (current device)
         $user->refresh();
         $this->assertEquals(1, $user->tokens()->count());
+    }
+
+    public function test_user_can_request_verification_email(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create([
+            'email' => 'unverified@example.com',
+            'email_verified_at' => null,
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/auth/email/resend');
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'message' => 'Verification email sent successfully.',
+            ]);
+
+        Notification::assertSentTo($user, VerifyEmailNotification::class);
+    }
+
+    public function test_cannot_resend_verification_if_already_verified(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'verified@example.com',
+            'email_verified_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/auth/email/resend');
+
+        $response->assertStatus(400)
+            ->assertJson([
+                'message' => 'Email already verified.',
+            ]);
+    }
+
+    public function test_user_can_verify_email_with_valid_link(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'email_verified_at' => null,
+        ]);
+
+        // Generate signed URL
+        $url = URL::temporarySignedRoute(
+            'api.v1.auth.verify-email',
+            now()->addMinutes(60),
+            [
+                'id' => $user->id,
+                'hash' => sha1($user->email),
+            ]
+        );
+
+        $response = $this->getJson($url);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'message' => 'Email verified successfully.',
+            ]);
+
+        $user->refresh();
+        $this->assertNotNull($user->email_verified_at);
+    }
+
+    public function test_email_verification_fails_with_invalid_hash(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'email_verified_at' => null,
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'api.v1.auth.verify-email',
+            now()->addMinutes(60),
+            [
+                'id' => $user->id,
+                'hash' => 'invalid-hash',
+            ]
+        );
+
+        $response = $this->getJson($url);
+
+        $response->assertStatus(400)
+            ->assertJson([
+                'message' => 'Invalid verification link.',
+            ]);
+
+        $user->refresh();
+        $this->assertNull($user->email_verified_at);
+    }
+
+    public function test_email_verification_fails_with_expired_signature(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'email_verified_at' => null,
+        ]);
+
+        // Generate expired URL (past time)
+        $url = URL::temporarySignedRoute(
+            'api.v1.auth.verify-email',
+            now()->subMinutes(10), // Expired
+            [
+                'id' => $user->id,
+                'hash' => sha1($user->email),
+            ]
+        );
+
+        $response = $this->getJson($url);
+
+        $response->assertStatus(400)
+            ->assertJson([
+                'message' => 'Invalid or expired verification link.',
+            ]);
+
+        $user->refresh();
+        $this->assertNull($user->email_verified_at);
+    }
+
+    public function test_cannot_verify_email_twice(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'email_verified_at' => now(),
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'api.v1.auth.verify-email',
+            now()->addMinutes(60),
+            [
+                'id' => $user->id,
+                'hash' => sha1($user->email),
+            ]
+        );
+
+        $response = $this->getJson($url);
+
+        $response->assertStatus(400)
+            ->assertJson([
+                'message' => 'Email already verified.',
+            ]);
+    }
+
+    public function test_resend_verification_requires_authentication(): void
+    {
+        $response = $this->postJson('/api/v1/auth/email/resend');
+
+        $response->assertStatus(401);
     }
 }
