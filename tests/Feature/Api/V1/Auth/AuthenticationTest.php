@@ -5,6 +5,9 @@ namespace Tests\Feature\Api\V1\Auth;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -161,5 +164,128 @@ class AuthenticationTest extends TestCase
             ->assertJson([
                 'message' => 'Your account has been deactivated. Please contact support.',
             ]);
+    }
+
+    public function test_user_can_request_password_reset(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create([
+            'email' => 'john@example.com',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/forgot-password', [
+            'email' => 'john@example.com',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'message' => 'Password reset link sent to your email address.',
+            ]);
+    }
+
+    public function test_forgot_password_fails_with_invalid_email(): void
+    {
+        $response = $this->postJson('/api/v1/auth/forgot-password', [
+            'email' => 'nonexistent@example.com',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_forgot_password_requires_email(): void
+    {
+        $response = $this->postJson('/api/v1/auth/forgot-password', []);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_user_can_reset_password_with_valid_token(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'john@example.com',
+            'password_hash' => Hash::make('OldPassword123'),
+        ]);
+
+        $token = Password::createToken($user);
+
+        $response = $this->postJson('/api/v1/auth/reset-password', [
+            'token' => $token,
+            'email' => 'john@example.com',
+            'password' => 'NewPassword123',
+            'password_confirmation' => 'NewPassword123',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'message' => 'Password reset successful. Please login with your new password.',
+            ]);
+
+        $user->refresh();
+        $this->assertTrue(Hash::check('NewPassword123', $user->password_hash));
+    }
+
+    public function test_password_reset_fails_with_invalid_token(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'john@example.com',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/reset-password', [
+            'token' => 'invalid-token',
+            'email' => 'john@example.com',
+            'password' => 'NewPassword123',
+            'password_confirmation' => 'NewPassword123',
+        ]);
+
+        $response->assertStatus(400)
+            ->assertJson([
+                'message' => 'Invalid or expired reset token. Please request a new one.',
+            ]);
+    }
+
+    public function test_password_reset_requires_password_confirmation(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'john@example.com',
+        ]);
+
+        $token = Password::createToken($user);
+
+        $response = $this->postJson('/api/v1/auth/reset-password', [
+            'token' => $token,
+            'email' => 'john@example.com',
+            'password' => 'NewPassword123',
+            'password_confirmation' => 'DifferentPassword123',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_password_reset_revokes_existing_tokens(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'john@example.com',
+            'password_hash' => Hash::make('OldPassword123'),
+        ]);
+
+        // Create a token
+        $oldToken = $user->createToken('auth-token')->plainTextToken;
+
+        // Reset password
+        $resetToken = Password::createToken($user);
+
+        $this->postJson('/api/v1/auth/reset-password', [
+            'token' => $resetToken,
+            'email' => 'john@example.com',
+            'password' => 'NewPassword123',
+            'password_confirmation' => 'NewPassword123',
+        ]);
+
+        // Verify old token is revoked
+        $this->assertEquals(0, $user->tokens()->count());
     }
 }

@@ -20,6 +20,8 @@ Route::prefix('v1')->group(function () {
         // Public routes
         Route::post('/register', [AuthController::class, 'register'])->name('api.v1.auth.register');
         Route::post('/login', [AuthController::class, 'login'])->name('api.v1.auth.login');
+        Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('api.v1.auth.forgot-password');
+        Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('api.v1.auth.reset-password');
 
         // Protected routes
         Route::middleware('auth:sanctum')->group(function () {

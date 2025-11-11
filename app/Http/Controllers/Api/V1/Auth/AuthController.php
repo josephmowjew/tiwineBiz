@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -154,6 +157,75 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to retrieve user data.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Send password reset link to user's email.
+     */
+    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
+    {
+        try {
+            $status = Password::sendResetLink(
+                $request->only('email')
+            );
+
+            if ($status === Password::RESET_LINK_SENT) {
+                return response()->json([
+                    'message' => 'Password reset link sent to your email address.',
+                ], 200);
+            }
+
+            return response()->json([
+                'message' => 'Unable to send password reset link. Please try again.',
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to send password reset link.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Reset user password with token.
+     */
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
+    {
+        try {
+            $status = Password::reset(
+                $request->only('email', 'password', 'password_confirmation', 'token'),
+                function (User $user, string $password) {
+                    // Update password_hash field instead of password
+                    $user->forceFill([
+                        'password_hash' => Hash::make($password),
+                    ])->save();
+
+                    // Revoke all existing tokens for security
+                    $user->tokens()->delete();
+                }
+            );
+
+            if ($status === Password::PASSWORD_RESET) {
+                return response()->json([
+                    'message' => 'Password reset successful. Please login with your new password.',
+                ], 200);
+            }
+
+            if ($status === Password::INVALID_TOKEN) {
+                return response()->json([
+                    'message' => 'Invalid or expired reset token. Please request a new one.',
+                ], 400);
+            }
+
+            return response()->json([
+                'message' => 'Unable to reset password. Please try again.',
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to reset password.',
                 'error' => $e->getMessage(),
             ], 500);
         }
