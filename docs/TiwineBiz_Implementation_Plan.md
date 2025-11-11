@@ -68,7 +68,7 @@ TiwineBiz is a web-first, offline-capable Progressive Web Application (PWA) desi
 - MySQL database with proper migrations
 - Laravel Pint code formatting
 
-#### Backend API Endpoints (51 Total)
+#### Backend API Endpoints (52 Total)
 1. **Reports & Analytics** - 22 endpoints
    - Dashboard overview with real-time metrics
    - Sales reports (summary, daily, weekly, monthly, comparison, hourly)
@@ -144,6 +144,20 @@ TiwineBiz is a web-first, offline-capable Progressive Web Application (PWA) desi
     - Multiple refund methods (cash, mobile_money, bank_transfer, card, credit_note)
     - Refund metadata tracking in internal notes
     - Prevents duplicate refunds and refunding cancelled sales
+
+11. **MRA EIS Integration (Electronic Invoicing System)** - 1 endpoint + Service
+    - Full integration with Malawi Revenue Authority's Electronic Invoicing System
+    - OAuth2 client credentials authentication
+    - Automatic fiscalization of paid sales
+    - Manual fiscalization endpoint
+    - Complete invoice data submission (seller, buyer, items, totals, payment)
+    - Fiscal receipt number, QR code, and digital signature capture
+    - Failed transmission retry mechanism with exponential backoff
+    - Invoice verification capability
+    - EFD transaction audit trail
+    - Configurable via environment variables
+    - Non-blocking: Sales succeed even if fiscalization fails
+    - Compliant with MRA requirements for VAT-registered businesses
 
 ### ❌ Not Yet Implemented
 
@@ -1954,6 +1968,15 @@ X-RateLimit-Reset: 1699534800
 - [x] Multi-channel notifications (Backend API complete - Email, SMS, Database)
 - [x] Notification preferences (Backend API complete)
 - [x] Multi-currency support (Backend API complete - Exchange rates)
+- [x] **MRA EIS Integration** (Backend API complete - Full fiscal receipt integration)
+  - Automatic fiscalization of paid sales
+  - Manual fiscalization endpoint
+  - OAuth2 authentication with MRA API
+  - Fiscal signature and QR code generation
+  - EFD transaction audit trail
+  - Failed transmission retry mechanism
+  - Invoice verification
+  - Compliant with MRA requirements for VAT businesses
 - [x] EFD transaction tracking (Backend API complete)
 - [x] Mobile money transaction logging (Backend API complete)
 - [x] Subscription management (Backend API complete)
