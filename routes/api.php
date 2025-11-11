@@ -92,6 +92,7 @@ Route::prefix('v1')->group(function () {
         // Sales Management
         Route::apiResource('sales', \App\Http\Controllers\Api\V1\SaleController::class);
         Route::post('sales/{id}/refund', [\App\Http\Controllers\Api\V1\SaleController::class, 'refund'])->name('api.v1.sales.refund');
+        Route::post('sales/{id}/fiscalize', [\App\Http\Controllers\Api\V1\SaleController::class, 'fiscalize'])->name('api.v1.sales.fiscalize');
 
         // Payment Management (Immutable - no updates or deletes)
         Route::apiResource('payments', \App\Http\Controllers\Api\V1\PaymentController::class)->only(['index', 'store', 'show']);

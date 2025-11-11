@@ -10,6 +10,7 @@ use App\Http\Resources\SaleResource;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Services\MraEisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -209,6 +210,20 @@ class SaleController extends Controller
             }
 
             DB::commit();
+
+            // Auto-fiscalize with MRA EIS if enabled
+            if (config('services.mra_eis.auto_fiscalize') && $request->payment_status === 'paid') {
+                $mraService = new MraEisService;
+                $fiscalizationResult = $mraService->fiscalizeInvoice($sale->fresh());
+
+                // Log if fiscalization fails but don't fail the sale creation
+                if (! $fiscalizationResult['success']) {
+                    \Log::warning('MRA EIS auto-fiscalization failed for sale', [
+                        'sale_id' => $sale->id,
+                        'error' => $fiscalizationResult['message'] ?? 'Unknown error',
+                    ]);
+                }
+            }
 
             return response()->json([
                 'message' => 'Sale created successfully.',
@@ -515,6 +530,77 @@ class SaleController extends Controller
 
             return response()->json([
                 'message' => 'Failed to refund sale.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Manually fiscalize a sale with MRA EIS.
+     */
+    public function fiscalize(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+
+        // Get shop IDs the user has access to
+        $shopIds = $user->shops()
+            ->pluck('shops.id')
+            ->merge([$user->ownedShops()->pluck('id')])
+            ->flatten()
+            ->unique()
+            ->values();
+
+        $sale = Sale::query()
+            ->where('id', $id)
+            ->whereIn('shop_id', $shopIds)
+            ->first();
+
+        if (! $sale) {
+            return response()->json([
+                'message' => 'Sale not found or you do not have access to it.',
+            ], 404);
+        }
+
+        // Check if already fiscalized
+        if ($sale->is_fiscalized) {
+            return response()->json([
+                'message' => 'This sale has already been fiscalized.',
+                'fiscal_receipt_number' => $sale->efd_receipt_number,
+                'qr_code' => $sale->efd_qr_code,
+            ], 422);
+        }
+
+        // Check if sale is paid
+        if ($sale->payment_status !== 'paid') {
+            return response()->json([
+                'message' => 'Only fully paid sales can be fiscalized.',
+            ], 422);
+        }
+
+        try {
+            $mraService = new MraEisService;
+            $result = $mraService->fiscalizeInvoice($sale);
+
+            if ($result['success']) {
+                return response()->json([
+                    'message' => 'Sale fiscalized successfully with MRA EIS.',
+                    'data' => [
+                        'sale_id' => $sale->id,
+                        'fiscal_receipt_number' => $result['fiscal_receipt_number'] ?? null,
+                        'qr_code' => $result['qr_code'] ?? null,
+                        'verification_url' => $result['verification_url'] ?? null,
+                    ],
+                ]);
+            }
+
+            return response()->json([
+                'message' => $result['message'] ?? 'Failed to fiscalize sale.',
+                'error_details' => $result['error_details'] ?? null,
+            ], 500);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Exception during fiscalization.',
                 'error' => $e->getMessage(),
             ], 500);
         }
