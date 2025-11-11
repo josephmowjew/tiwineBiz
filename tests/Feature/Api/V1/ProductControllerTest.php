@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Shop;
+use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -807,4 +808,270 @@ test('deleting image re-indexes array properly', function () {
     expect($product->images[0])->toBe('/storage/'.$imagePath1);
     expect($product->images[1])->toBe('/storage/'.$imagePath3);
     expect(array_keys($product->images))->toBe([0, 1]); // Keys should be re-indexed
+});
+
+// Stock Adjustment Tests
+
+test('user can increase product stock', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'quantity' => 100,
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'increase',
+            'quantity' => 50,
+            'reason' => 'Restocking from supplier',
+            'notes' => 'Additional notes',
+            'unit_cost' => 10.50,
+        ]);
+
+    $response->assertStatus(200)
+        ->assertJson([
+            'message' => 'Stock adjusted successfully.',
+            'data' => [
+                'product_id' => $product->id,
+                'quantity_before' => 100,
+                'quantity_after' => 150,
+                'adjustment_type' => 'increase',
+                'adjustment_quantity' => 50,
+            ],
+        ])
+        ->assertJsonStructure([
+            'data' => ['stock_movement_id'],
+        ]);
+
+    $product->refresh();
+    expect($product->quantity)->toBe('150.000');
+
+    $this->assertDatabaseHas('stock_movements', [
+        'product_id' => $product->id,
+        'movement_type' => 'adjustment_increase',
+        'quantity' => 50,
+        'quantity_before' => 100,
+        'quantity_after' => 150,
+        'unit_cost' => 10.50,
+        'total_cost' => 525.00,
+        'reason' => 'Restocking from supplier',
+        'reference_type' => 'adjustment',
+        'created_by' => $user->id,
+    ]);
+});
+
+test('user can decrease product stock', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'quantity' => 100,
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'decrease',
+            'quantity' => 25,
+            'reason' => 'Damaged items removed from stock',
+        ]);
+
+    $response->assertStatus(200)
+        ->assertJson([
+            'message' => 'Stock adjusted successfully.',
+            'data' => [
+                'product_id' => $product->id,
+                'quantity_before' => 100,
+                'quantity_after' => 75,
+                'adjustment_type' => 'decrease',
+                'adjustment_quantity' => 25,
+            ],
+        ]);
+
+    $product->refresh();
+    expect($product->quantity)->toBe('75.000');
+
+    $this->assertDatabaseHas('stock_movements', [
+        'product_id' => $product->id,
+        'movement_type' => 'adjustment_decrease',
+        'quantity' => 25,
+        'quantity_before' => 100,
+        'quantity_after' => 75,
+        'reason' => 'Damaged items removed from stock',
+    ]);
+});
+
+test('cannot decrease stock below zero', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'quantity' => 10,
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'decrease',
+            'quantity' => 50,
+            'reason' => 'Testing insufficient stock',
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJson([
+            'message' => 'Insufficient stock. Current stock: 10',
+        ]);
+
+    $product->refresh();
+    expect($product->quantity)->toBe('10.000');
+});
+
+test('cannot adjust stock for inaccessible product', function () {
+    $user = User::factory()->create();
+    $otherUser = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $otherUser->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $otherUser->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'increase',
+            'quantity' => 10,
+            'reason' => 'Should fail',
+        ]);
+
+    $response->assertStatus(404)
+        ->assertJson([
+            'message' => 'Product not found or you do not have access to it.',
+        ]);
+});
+
+test('stock adjustment validates required fields', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", []);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['type', 'quantity', 'reason']);
+});
+
+test('stock adjustment validates adjustment type', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'invalid',
+            'quantity' => 10,
+            'reason' => 'Test',
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['type']);
+});
+
+test('stock adjustment validates quantity is positive', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'increase',
+            'quantity' => 0,
+            'reason' => 'Test',
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['quantity']);
+});
+
+test('stock adjustment creates stock movement record', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'quantity' => 50,
+        'created_by' => $user->id,
+    ]);
+
+    $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'increase',
+            'quantity' => 25,
+            'reason' => 'Stock replenishment',
+            'notes' => 'Additional inventory',
+        ]);
+
+    $stockMovement = StockMovement::where('product_id', $product->id)->first();
+
+    expect($stockMovement)->not->toBeNull();
+    expect($stockMovement->shop_id)->toBe($shop->id);
+    expect($stockMovement->movement_type)->toBe('adjustment_increase');
+    expect($stockMovement->quantity)->toBe('25.000');
+    expect($stockMovement->quantity_before)->toBe('50.000');
+    expect($stockMovement->quantity_after)->toBe('75.000');
+    expect($stockMovement->reason)->toBe('Stock replenishment');
+    expect($stockMovement->notes)->toBe('Additional inventory');
+    expect($stockMovement->reference_type)->toBe('adjustment');
+    expect($stockMovement->created_by)->toBe($user->id);
+});
+
+test('stock adjustment updates last_restocked_at on increase', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'quantity' => 100,
+        'last_restocked_at' => null,
+        'created_by' => $user->id,
+    ]);
+
+    $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'increase',
+            'quantity' => 50,
+            'reason' => 'New stock arrived',
+        ]);
+
+    $product->refresh();
+    expect($product->last_restocked_at)->not->toBeNull();
+});
+
+test('stock adjustment does not update last_restocked_at on decrease', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'quantity' => 100,
+        'last_restocked_at' => null,
+        'created_by' => $user->id,
+    ]);
+
+    $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/adjust-stock", [
+            'type' => 'decrease',
+            'quantity' => 10,
+            'reason' => 'Removed damaged items',
+        ]);
+
+    $product->refresh();
+    expect($product->last_restocked_at)->toBeNull();
 });

@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Product\AdjustStockRequest;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Http\Requests\Product\UploadImageRequest;
 use App\Http\Resources\ProductResource;
+use App\Models\StockMovement;
 use App\Repositories\Contracts\ProductRepositoryInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
@@ -296,5 +299,96 @@ class ProductController extends Controller
                 'remaining_images' => count($images),
             ],
         ]);
+    }
+
+    /**
+     * Adjust product stock level.
+     *
+     * This is a convenience endpoint that creates a stock movement
+     * and updates the product quantity in a single transaction.
+     */
+    public function adjustStock(AdjustStockRequest $request, string $id): JsonResponse
+    {
+        // Verify product exists and user has access
+        $filters = ['id' => $id];
+        $products = $this->productRepository->all($filters);
+
+        if ($products->isEmpty()) {
+            return response()->json([
+                'message' => 'Product not found or you do not have access to it.',
+            ], 404);
+        }
+
+        $product = $products->first();
+
+        // Check for insufficient stock on decrease
+        if ($request->type === 'decrease' && $product->quantity < $request->quantity) {
+            return response()->json([
+                'message' => 'Insufficient stock. Current stock: '.rtrim(rtrim($product->quantity, '0'), '.'),
+            ], 422);
+        }
+
+        // Use transaction to ensure data consistency
+        DB::beginTransaction();
+
+        try {
+            $currentStock = $product->quantity;
+            $movementType = $request->type === 'increase' ? 'adjustment_increase' : 'adjustment_decrease';
+
+            // Calculate new quantity
+            $quantityAfter = $request->type === 'increase'
+                ? $currentStock + $request->quantity
+                : $currentStock - $request->quantity;
+
+            // Calculate total cost if unit_cost provided
+            $totalCost = $request->filled('unit_cost')
+                ? $request->quantity * $request->unit_cost
+                : null;
+
+            // Create stock movement record (immutable audit trail)
+            $stockMovement = StockMovement::create([
+                'shop_id' => $product->shop_id,
+                'product_id' => $product->id,
+                'movement_type' => $movementType,
+                'quantity' => $request->quantity,
+                'quantity_before' => $currentStock,
+                'quantity_after' => $quantityAfter,
+                'unit_cost' => $request->unit_cost,
+                'total_cost' => $totalCost,
+                'reference_type' => 'adjustment',
+                'reason' => $request->reason,
+                'notes' => $request->notes,
+                'created_by' => $request->user()->id,
+                'created_at' => now(),
+            ]);
+
+            // Update product quantity
+            $this->productRepository->update($id, [
+                'quantity' => $quantityAfter,
+                'last_restocked_at' => $request->type === 'increase' ? now() : $product->last_restocked_at,
+                'updated_by' => $request->user()->id,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Stock adjusted successfully.',
+                'data' => [
+                    'product_id' => $product->id,
+                    'quantity_before' => $currentStock,
+                    'quantity_after' => $quantityAfter,
+                    'adjustment_type' => $request->type,
+                    'adjustment_quantity' => $request->quantity,
+                    'stock_movement_id' => $stockMovement->id,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to adjust stock.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
