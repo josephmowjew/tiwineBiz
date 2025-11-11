@@ -4,16 +4,19 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Product\AdjustStockRequest;
+use App\Http\Requests\Product\ImportProductsRequest;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Http\Requests\Product\UploadImageRequest;
 use App\Http\Resources\ProductResource;
+use App\Imports\ProductsImport;
 use App\Models\StockMovement;
 use App\Repositories\Contracts\ProductRepositoryInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProductController extends Controller
 {
@@ -387,6 +390,73 @@ class ProductController extends Controller
 
             return response()->json([
                 'message' => 'Failed to adjust stock.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Import products from Excel/CSV file.
+     *
+     * Accepts Excel (xlsx, xls) or CSV files with product data.
+     * Returns count of successful imports and any validation failures.
+     */
+    public function import(ImportProductsRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user has access to the shop
+        $shopIds = $user->shops()
+            ->pluck('shops.id')
+            ->merge([$user->ownedShops()->pluck('id')])
+            ->flatten()
+            ->unique()
+            ->values();
+
+        if (! in_array($request->shop_id, $shopIds->toArray())) {
+            return response()->json([
+                'message' => 'You do not have access to this shop.',
+            ], 403);
+        }
+
+        try {
+            $import = new ProductsImport($request->shop_id, $user->id);
+
+            Excel::import($import, $request->file('file'));
+
+            $failures = $import->getFailures();
+
+            // Format validation failures for response
+            $errors = [];
+            foreach ($failures as $failure) {
+                $errors[] = [
+                    'row' => $failure->row(),
+                    'attribute' => $failure->attribute(),
+                    'errors' => $failure->errors(),
+                    'values' => $failure->values(),
+                ];
+            }
+
+            $importedCount = $import->getRowCount() - count($failures);
+
+            $response = [
+                'message' => count($failures) > 0
+                    ? 'Import completed with some failures.'
+                    : 'Products imported successfully.',
+                'data' => [
+                    'imported_count' => $importedCount,
+                    'failed_count' => count($failures),
+                ],
+            ];
+
+            if (count($failures) > 0) {
+                $response['data']['failures'] = $errors;
+            }
+
+            return response()->json($response, count($failures) > 0 ? 207 : 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to import products.',
                 'error' => $e->getMessage(),
             ], 500);
         }

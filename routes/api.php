@@ -74,6 +74,7 @@ Route::prefix('v1')->group(function () {
 
         // Product Management
         Route::apiResource('products', \App\Http\Controllers\Api\V1\ProductController::class);
+        Route::post('products/import', [\App\Http\Controllers\Api\V1\ProductController::class, 'import'])->name('api.v1.products.import');
         Route::post('products/{id}/images', [\App\Http\Controllers\Api\V1\ProductController::class, 'uploadImage'])->name('api.v1.products.upload-image');
         Route::delete('products/{id}/images/{imageIndex}', [\App\Http\Controllers\Api\V1\ProductController::class, 'deleteImage'])->name('api.v1.products.delete-image');
         Route::post('products/{id}/adjust-stock', [\App\Http\Controllers\Api\V1\ProductController::class, 'adjustStock'])->name('api.v1.products.adjust-stock');
