@@ -445,11 +445,11 @@ This project is proprietary software. All rights reserved.
 
 ## 👥 Authors
 
-- Development Team - TiwineBiz
+- Joseph Mojoo
 
 ## 📞 Support
 
-For support, email support@tiwinebiz.com or open an issue in the repository.
+For support, email mojoojoseph@gmail.com or open an issue in the repository.
 
 ## 🎯 Roadmap
 
