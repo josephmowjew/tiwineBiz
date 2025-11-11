@@ -1872,18 +1872,32 @@ X-RateLimit-Reset: 1699534800
 - [x] Stock transfer between branches (Backend API complete)
 - [x] Product batches (Backend API complete for expiry tracking)
 
-**Sales:**
+**Sales (Complete POS Backend Support):**
 - [ ] POS interface (Frontend needed)
 - [ ] Fast product selection (Frontend needed)
 - [ ] Shopping cart (Frontend needed)
+- [x] **Full POS Transaction Processing** (Backend API complete)
+  - Multiple items per sale with quantities
+  - Per-item discounts (amount or percentage)
+  - Tax/VAT calculation per item
+  - Multiple payment methods in single transaction (cash, mobile money, card)
+  - Customer assignment (optional/walk-in)
+  - Branch tracking
+  - Automatic inventory deduction
+  - Change calculation
+  - Payment status tracking (paid, partial, credit)
+  - Sale numbering and tracking
 - [x] Cash payment processing (Backend API complete)
 - [x] Manual mobile money logging (Backend API complete)
-- [x] Sale creation and tracking (Backend API complete)
+- [x] Card payment tracking (Backend API complete)
+- [x] Split payment support (Backend API complete - payment_methods array)
+- [x] Sale creation with multiple items (Backend API complete)
 - [x] Receipt generation (Backend API - PDF generation complete)
 - [x] Receipt email (Backend API complete)
-- [ ] Receipt sharing (WhatsApp)
+- [ ] Receipt sharing (WhatsApp integration needed)
 - [x] Sales history (Backend API complete with filtering)
 - [x] Daily summary (Backend API complete)
+- [x] Sale cancellation with inventory restoration (Backend API complete)
 - [x] Sale refunds (Backend API complete with full and partial refund support)
 - [x] Payment tracking (Backend API complete - immutable payment records)
 - [x] Credit/Layaway tracking (Backend API complete)
