@@ -288,4 +288,117 @@ class AuthenticationTest extends TestCase
         // Verify old token is revoked
         $this->assertEquals(0, $user->tokens()->count());
     }
+
+    public function test_authenticated_user_can_change_password(): void
+    {
+        $user = User::factory()->create([
+            'password_hash' => Hash::make('OldPassword123'),
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->putJson('/api/v1/auth/change-password', [
+                'current_password' => 'OldPassword123',
+                'password' => 'NewPassword123',
+                'password_confirmation' => 'NewPassword123',
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'message' => 'Password changed successfully.',
+            ]);
+
+        $user->refresh();
+        $this->assertTrue(Hash::check('NewPassword123', $user->password_hash));
+    }
+
+    public function test_change_password_fails_with_wrong_current_password(): void
+    {
+        $user = User::factory()->create([
+            'password_hash' => Hash::make('OldPassword123'),
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->putJson('/api/v1/auth/change-password', [
+                'current_password' => 'WrongPassword',
+                'password' => 'NewPassword123',
+                'password_confirmation' => 'NewPassword123',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['current_password']);
+    }
+
+    public function test_change_password_requires_authentication(): void
+    {
+        $response = $this->putJson('/api/v1/auth/change-password', [
+            'current_password' => 'OldPassword123',
+            'password' => 'NewPassword123',
+            'password_confirmation' => 'NewPassword123',
+        ]);
+
+        $response->assertStatus(401);
+    }
+
+    public function test_change_password_requires_confirmation(): void
+    {
+        $user = User::factory()->create([
+            'password_hash' => Hash::make('OldPassword123'),
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->putJson('/api/v1/auth/change-password', [
+                'current_password' => 'OldPassword123',
+                'password' => 'NewPassword123',
+                'password_confirmation' => 'DifferentPassword123',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_change_password_requires_new_password_to_be_different(): void
+    {
+        $user = User::factory()->create([
+            'password_hash' => Hash::make('OldPassword123'),
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->putJson('/api/v1/auth/change-password', [
+                'current_password' => 'OldPassword123',
+                'password' => 'OldPassword123',
+                'password_confirmation' => 'OldPassword123',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_change_password_revokes_other_device_tokens(): void
+    {
+        $user = User::factory()->create([
+            'password_hash' => Hash::make('OldPassword123'),
+        ]);
+
+        // Create multiple tokens (simulating multiple devices)
+        $token1 = $user->createToken('device1')->plainTextToken;
+        $token2 = $user->createToken('device2')->plainTextToken;
+        $currentToken = $user->createToken('current-device')->plainTextToken;
+
+        // Initially should have 3 tokens
+        $this->assertEquals(3, $user->tokens()->count());
+
+        // Change password using current token
+        $response = $this->withHeader('Authorization', 'Bearer '.$currentToken)
+            ->putJson('/api/v1/auth/change-password', [
+                'current_password' => 'OldPassword123',
+                'password' => 'NewPassword123',
+                'password_confirmation' => 'NewPassword123',
+            ]);
+
+        $response->assertStatus(200);
+
+        // Should only have 1 token left (current device)
+        $user->refresh();
+        $this->assertEquals(1, $user->tokens()->count());
+    }
 }

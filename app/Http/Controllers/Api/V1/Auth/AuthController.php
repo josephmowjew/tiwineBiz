@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -226,6 +227,47 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to reset password.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Change authenticated user's password.
+     */
+    public function changePassword(ChangePasswordRequest $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Verify current password
+            if (! Hash::check($request->current_password, $user->password_hash)) {
+                return response()->json([
+                    'message' => 'The current password is incorrect.',
+                    'errors' => [
+                        'current_password' => ['The current password is incorrect.'],
+                    ],
+                ], 422);
+            }
+
+            // Update password
+            $user->update([
+                'password_hash' => Hash::make($request->password),
+            ]);
+
+            // Revoke all tokens except current one
+            // This forces logout on other devices for security
+            $currentToken = $user->currentAccessToken();
+            if ($currentToken) {
+                $user->tokens()->where('id', '!=', $currentToken->id)->delete();
+            }
+
+            return response()->json([
+                'message' => 'Password changed successfully.',
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to change password.',
                 'error' => $e->getMessage(),
             ], 500);
         }

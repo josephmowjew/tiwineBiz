@@ -27,6 +27,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('/logout', [AuthController::class, 'logout'])->name('api.v1.auth.logout');
             Route::get('/user', [AuthController::class, 'user'])->name('api.v1.auth.user');
+            Route::put('/change-password', [AuthController::class, 'changePassword'])->name('api.v1.auth.change-password');
         });
     });
 
