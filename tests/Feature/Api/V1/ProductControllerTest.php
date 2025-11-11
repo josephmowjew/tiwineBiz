@@ -5,6 +5,8 @@ use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -583,4 +585,226 @@ test('mobile device receives cursor pagination', function () {
 
     expect($response->json('meta.has_more'))->toBe(true);
     expect($response->json('meta'))->not->toHaveKey('total');
+});
+
+// Product Image Upload Tests
+test('user can upload product image', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+        'images' => [],
+    ]);
+
+    $file = UploadedFile::fake()->image('product.jpg');
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/images", [
+            'image' => $file,
+        ]);
+
+    $response->assertStatus(201)
+        ->assertJson([
+            'message' => 'Image uploaded successfully.',
+        ])
+        ->assertJsonStructure([
+            'data' => ['image_url', 'total_images'],
+        ]);
+
+    $product->refresh();
+    expect($product->images)->toHaveCount(1);
+    expect($product->images[0])->toContain('/storage/product-images/');
+
+    Storage::disk('public')->assertExists(str_replace('/storage/', '', $product->images[0]));
+});
+
+test('user can upload multiple images to same product', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+        'images' => [],
+    ]);
+
+    // Upload first image
+    $file1 = UploadedFile::fake()->image('product1.jpg');
+    $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/images", ['image' => $file1])
+        ->assertStatus(201);
+
+    // Upload second image
+    $file2 = UploadedFile::fake()->image('product2.jpg');
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/images", ['image' => $file2]);
+
+    $response->assertStatus(201);
+    expect($response->json('data.total_images'))->toBe(2);
+
+    $product->refresh();
+    expect($product->images)->toHaveCount(2);
+});
+
+test('cannot upload image to inaccessible product', function () {
+    $user = User::factory()->create();
+    $otherUser = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $otherUser->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $otherUser->id,
+    ]);
+
+    $file = UploadedFile::fake()->image('product.jpg');
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/images", [
+            'image' => $file,
+        ]);
+
+    $response->assertStatus(404)
+        ->assertJson([
+            'message' => 'Product not found or you do not have access to it.',
+        ]);
+});
+
+test('image upload validates file type', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+    ]);
+
+    $file = UploadedFile::fake()->create('document.pdf', 100);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/images", [
+            'image' => $file,
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['image']);
+});
+
+test('image upload validates file size', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+    ]);
+
+    // Create a 6MB file (exceeds 5MB limit)
+    $file = UploadedFile::fake()->create('product.jpg', 6144);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/products/{$product->id}/images", [
+            'image' => $file,
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['image']);
+});
+
+test('user can delete product image', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    // Create product with existing images
+    $imagePath1 = UploadedFile::fake()->image('product1.jpg')->store('product-images', 'public');
+    $imagePath2 = UploadedFile::fake()->image('product2.jpg')->store('product-images', 'public');
+
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+        'images' => ['/storage/'.$imagePath1, '/storage/'.$imagePath2],
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->deleteJson("/api/v1/products/{$product->id}/images/0");
+
+    $response->assertStatus(200)
+        ->assertJson([
+            'message' => 'Image deleted successfully.',
+        ]);
+
+    expect($response->json('data.remaining_images'))->toBe(1);
+
+    $product->refresh();
+    expect($product->images)->toHaveCount(1);
+    expect($product->images[0])->toBe('/storage/'.$imagePath2);
+
+    Storage::disk('public')->assertMissing($imagePath1);
+    Storage::disk('public')->assertExists($imagePath2);
+});
+
+test('cannot delete image at invalid index', function () {
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+        'images' => ['/storage/product-images/image1.jpg'],
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->deleteJson("/api/v1/products/{$product->id}/images/5");
+
+    $response->assertStatus(404)
+        ->assertJson([
+            'message' => 'Image not found at the specified index.',
+        ]);
+});
+
+test('cannot delete image from inaccessible product', function () {
+    $user = User::factory()->create();
+    $otherUser = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $otherUser->id]);
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $otherUser->id,
+        'images' => ['/storage/product-images/image1.jpg'],
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->deleteJson("/api/v1/products/{$product->id}/images/0");
+
+    $response->assertStatus(404)
+        ->assertJson([
+            'message' => 'Product not found or you do not have access to it.',
+        ]);
+});
+
+test('deleting image re-indexes array properly', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $user->id]);
+
+    $imagePath1 = UploadedFile::fake()->image('product1.jpg')->store('product-images', 'public');
+    $imagePath2 = UploadedFile::fake()->image('product2.jpg')->store('product-images', 'public');
+    $imagePath3 = UploadedFile::fake()->image('product3.jpg')->store('product-images', 'public');
+
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'created_by' => $user->id,
+        'images' => ['/storage/'.$imagePath1, '/storage/'.$imagePath2, '/storage/'.$imagePath3],
+    ]);
+
+    // Delete middle image
+    $this->actingAs($user, 'sanctum')
+        ->deleteJson("/api/v1/products/{$product->id}/images/1");
+
+    $product->refresh();
+    expect($product->images)->toHaveCount(2);
+    expect($product->images[0])->toBe('/storage/'.$imagePath1);
+    expect($product->images[1])->toBe('/storage/'.$imagePath3);
+    expect(array_keys($product->images))->toBe([0, 1]); // Keys should be re-indexed
 });

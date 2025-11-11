@@ -74,6 +74,8 @@ Route::prefix('v1')->group(function () {
 
         // Product Management
         Route::apiResource('products', \App\Http\Controllers\Api\V1\ProductController::class);
+        Route::post('products/{id}/images', [\App\Http\Controllers\Api\V1\ProductController::class, 'uploadImage'])->name('api.v1.products.upload-image');
+        Route::delete('products/{id}/images/{imageIndex}', [\App\Http\Controllers\Api\V1\ProductController::class, 'deleteImage'])->name('api.v1.products.delete-image');
 
         // Customer Management
         Route::apiResource('customers', \App\Http\Controllers\Api\V1\CustomerController::class);

@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
+use App\Http\Requests\Product\UploadImageRequest;
 use App\Http\Resources\ProductResource;
 use App\Repositories\Contracts\ProductRepositoryInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
@@ -197,6 +199,102 @@ class ProductController extends Controller
 
         return response()->json([
             'message' => 'Product deleted successfully.',
+        ]);
+    }
+
+    /**
+     * Upload a product image.
+     */
+    public function uploadImage(UploadImageRequest $request, string $id): JsonResponse
+    {
+        // Verify product exists and user has access
+        $filters = ['id' => $id];
+        $products = $this->productRepository->all($filters);
+
+        if ($products->isEmpty()) {
+            return response()->json([
+                'message' => 'Product not found or you do not have access to it.',
+            ], 404);
+        }
+
+        $product = $products->first();
+
+        // Store the image
+        $path = $request->file('image')->store('product-images', 'public');
+        $imageUrl = '/storage/'.$path;
+
+        // Get current images array
+        $images = $product->images ?? [];
+
+        // Add new image to the array
+        $images[] = $imageUrl;
+
+        // Update product with new images array
+        $this->productRepository->update($id, [
+            'images' => $images,
+            'updated_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'message' => 'Image uploaded successfully.',
+            'data' => [
+                'image_url' => $imageUrl,
+                'total_images' => count($images),
+            ],
+        ], 201);
+    }
+
+    /**
+     * Delete a product image.
+     */
+    public function deleteImage(Request $request, string $id, string $imageIndex): JsonResponse
+    {
+        // Verify product exists and user has access
+        $filters = ['id' => $id];
+        $products = $this->productRepository->all($filters);
+
+        if ($products->isEmpty()) {
+            return response()->json([
+                'message' => 'Product not found or you do not have access to it.',
+            ], 404);
+        }
+
+        $product = $products->first();
+
+        // Get current images array
+        $images = $product->images ?? [];
+
+        // Validate image index
+        $index = (int) $imageIndex;
+        if (! isset($images[$index])) {
+            return response()->json([
+                'message' => 'Image not found at the specified index.',
+            ], 404);
+        }
+
+        // Delete the image file from storage
+        $imagePath = str_replace('/storage/', '', $images[$index]);
+        if (Storage::disk('public')->exists($imagePath)) {
+            Storage::disk('public')->delete($imagePath);
+        }
+
+        // Remove image from array
+        array_splice($images, $index, 1);
+
+        // Re-index array to maintain sequential keys
+        $images = array_values($images);
+
+        // Update product with new images array
+        $this->productRepository->update($id, [
+            'images' => $images,
+            'updated_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'message' => 'Image deleted successfully.',
+            'data' => [
+                'remaining_images' => count($images),
+            ],
         ]);
     }
 }
