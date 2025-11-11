@@ -39,6 +39,14 @@ Route::prefix('v1')->group(function () {
     */
     Route::middleware('auth:sanctum')->group(function () {
 
+        // Profile Management
+        Route::prefix('profile')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\V1\ProfileController::class, 'show'])->name('api.v1.profile.show');
+            Route::put('/', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update'])->name('api.v1.profile.update');
+            Route::post('/photo', [\App\Http\Controllers\Api\V1\ProfileController::class, 'uploadPhoto'])->name('api.v1.profile.upload-photo');
+            Route::delete('/photo', [\App\Http\Controllers\Api\V1\ProfileController::class, 'deletePhoto'])->name('api.v1.profile.delete-photo');
+        });
+
         // Shop Management
         Route::apiResource('shops', \App\Http\Controllers\Api\V1\ShopController::class);
 
