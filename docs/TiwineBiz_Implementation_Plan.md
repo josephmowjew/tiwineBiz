@@ -68,7 +68,7 @@ TiwineBiz is a web-first, offline-capable Progressive Web Application (PWA) desi
 - MySQL database with proper migrations
 - Laravel Pint code formatting
 
-#### Backend API Endpoints (48 Total)
+#### Backend API Endpoints (51 Total)
 1. **Reports & Analytics** - 22 endpoints
    - Dashboard overview with real-time metrics
    - Sales reports (summary, daily, weekly, monthly, comparison, hourly)
@@ -107,7 +107,10 @@ TiwineBiz is a web-first, offline-capable Progressive Web Application (PWA) desi
    - Date range filtering
    - Branch-level filtering
 
-6. **Authentication & User Management** - 4 endpoints
+6. **Authentication & User Management** - 7 endpoints
+   - User registration with validation
+   - Login with email or phone number
+   - Logout with token revocation
    - Password reset flow using Laravel Password Broker
    - Password change for authenticated users
    - Email verification with signed URLs
@@ -1836,13 +1839,14 @@ X-RateLimit-Reset: 1699534800
 ### MVP Feature Checklist
 
 **Authentication & User Management:**
-- [ ] User registration with phone verification
-- [ ] Login/Logout
+- [x] User registration (Backend API complete with validation)
+- [x] Login/Logout (Backend API complete with email/phone support)
 - [x] Password reset (Backend API complete)
 - [ ] Language selection (English/Chichewa)
 - [x] Profile management (Backend API complete with photo upload)
 - [x] Email verification (Backend API complete with signed URLs)
 - [x] Password change (Backend API complete)
+- [ ] Phone verification (Frontend integration needed)
 
 **Shop Management:**
 - [ ] Shop creation and setup
