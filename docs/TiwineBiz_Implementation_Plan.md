@@ -1849,68 +1849,100 @@ X-RateLimit-Reset: 1699534800
 - [ ] Phone verification (Frontend integration needed)
 
 **Shop Management:**
-- [ ] Shop creation and setup
-- [ ] Shop settings configuration
-- [ ] Logo upload
-- [ ] Basic shop information
+- [x] Shop creation and setup (Backend API complete)
+- [x] Shop settings configuration (Backend API complete)
+- [ ] Logo upload (Frontend integration needed)
+- [x] Basic shop information (Backend API complete)
 - [x] Shop invitation system (Backend API complete with email invitations)
 - [x] Role-based access control (Backend API complete with policies)
 - [x] Multi-user collaboration (Backend authorization complete)
+- [x] Branch management (Backend API complete with CRUD operations)
 
 **Product Management:**
-- [ ] Add/Edit/Delete products
-- [ ] Product search and filtering
+- [x] Add/Edit/Delete products (Backend API complete)
+- [x] Product search and filtering (Backend API complete)
 - [x] Image upload (Backend API complete with multiple images support)
-- [ ] Bilingual product names
-- [ ] Barcode scanning
-- [ ] Category management
-- [ ] Pricing (cost & selling price)
+- [x] Bilingual product names (Backend API complete - name_chichewa field)
+- [ ] Barcode scanning (Frontend integration needed)
+- [x] Category management (Backend API complete with CRUD operations)
+- [x] Pricing (cost & selling price) (Backend API complete)
 - [x] Basic stock tracking (Backend API complete)
 - [x] Stock adjustments (Backend API complete with audit trail)
 - [x] Bulk product import (Backend API complete with CSV/Excel support)
 - [x] Stock transfer between branches (Backend API complete)
+- [x] Product batches (Backend API complete for expiry tracking)
 
 **Sales:**
-- [ ] POS interface
-- [ ] Fast product selection
-- [ ] Shopping cart
-- [ ] Cash payment processing
-- [ ] Manual mobile money logging
+- [ ] POS interface (Frontend needed)
+- [ ] Fast product selection (Frontend needed)
+- [ ] Shopping cart (Frontend needed)
+- [x] Cash payment processing (Backend API complete)
+- [x] Manual mobile money logging (Backend API complete)
+- [x] Sale creation and tracking (Backend API complete)
 - [x] Receipt generation (Backend API - PDF generation complete)
+- [x] Receipt email (Backend API complete)
 - [ ] Receipt sharing (WhatsApp)
-- [ ] Sales history
-- [ ] Daily summary
+- [x] Sales history (Backend API complete with filtering)
+- [x] Daily summary (Backend API complete)
 - [x] Sale refunds (Backend API complete with full and partial refund support)
+- [x] Payment tracking (Backend API complete - immutable payment records)
+- [x] Credit/Layaway tracking (Backend API complete)
 
 **Inventory:**
-- [ ] Current stock view
+- [x] Current stock view (Backend API complete)
 - [x] Low stock alerts (Backend notifications complete)
-- [ ] Stock adjustments
+- [x] Stock adjustments (Backend API complete - increase/decrease with audit trail)
 - [x] Stock movement history (Backend inventory reports complete)
 - [x] Stock value calculation (Backend inventory valuation complete)
+- [x] Stock transfers between branches (Backend API complete)
+- [x] Supplier management (Backend API complete)
+- [x] Purchase orders (Backend API complete)
+- [x] Customer management (Backend API complete)
 
 **Reports:**
 - [x] Daily sales report (Backend API complete)
 - [x] Weekly summary (Backend API complete)
 - [x] Monthly summary (Backend API complete)
+- [x] Hourly sales breakdown (Backend API complete)
+- [x] Sales comparison (Backend API complete)
+- [x] Top customers report (Backend API complete)
 - [x] Product performance (Backend API complete)
+- [x] Top-selling products (Backend API complete)
+- [x] Slow-moving products (Backend API complete)
+- [x] Category performance (Backend API complete)
+- [x] Low stock report (Backend API complete)
+- [x] Inventory valuation (Backend API complete)
+- [x] Stock movement tracking (Backend API complete)
+- [x] Inventory aging analysis (Backend API complete)
+- [x] Stock turnover (Backend API complete)
+- [x] Dashboard with quick stats (Backend API complete)
 - [x] Basic cash flow (Backend API complete)
 - [x] PDF export (Backend API complete)
-- [ ] WhatsApp sharing
+- [x] Excel export (Backend API complete)
+- [ ] WhatsApp sharing (Integration needed)
 
 **Offline Features:**
-- [ ] PWA installation
-- [ ] Offline sales recording
-- [ ] Local data storage
+- [ ] PWA installation (Frontend needed)
+- [ ] Offline sales recording (Frontend needed)
+- [ ] Local data storage (Frontend IndexedDB needed)
 - [x] Automatic sync (Backend sync endpoints complete)
-- [ ] Sync status indicators
-- [x] Conflict resolution (Backend conflict resolution complete)
+- [ ] Sync status indicators (Frontend needed)
+- [x] Conflict resolution (Backend conflict resolution complete with 3 strategies)
+- [x] Queue-based sync processing (Backend API complete)
+- [x] Multi-device tracking (Backend API complete)
 
 **Other:**
-- [ ] Chichewa translation
-- [ ] Mobile responsive design
-- [ ] Help documentation
-- [ ] User onboarding
+- [x] Bilingual support (Backend API complete - Chichewa fields in products, receipts)
+- [ ] Chichewa translation (Frontend i18n needed)
+- [ ] Mobile responsive design (Frontend needed)
+- [ ] Help documentation (Content needed)
+- [ ] User onboarding (Frontend needed)
+- [x] Multi-channel notifications (Backend API complete - Email, SMS, Database)
+- [x] Notification preferences (Backend API complete)
+- [x] Multi-currency support (Backend API complete - Exchange rates)
+- [x] EFD transaction tracking (Backend API complete)
+- [x] Mobile money transaction logging (Backend API complete)
+- [x] Subscription management (Backend API complete)
 
 ---
 
