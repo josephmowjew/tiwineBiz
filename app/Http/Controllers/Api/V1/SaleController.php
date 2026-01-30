@@ -150,6 +150,19 @@ class SaleController extends Controller
 
             $sale = Sale::create($saleData);
 
+            // Attach active shift if exists
+            $activeShift = $user->activeShift();
+            if ($activeShift) {
+                $sale->shift_id = $activeShift->id;
+                $sale->save();
+
+                // Update shift balance and counters
+                $activeShift->current_balance += $sale->total_amount;
+                $activeShift->sales_amount += $sale->total_amount;
+                $activeShift->transaction_count += 1;
+                $activeShift->save();
+            }
+
             // Create sale items
             foreach ($request->items as $itemData) {
                 // Get product details

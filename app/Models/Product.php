@@ -23,6 +23,7 @@ class Product extends Model
         'manufacturer_code',
         'category_id',
         'cost_price',
+        'landing_cost',
         'selling_price',
         'min_price',
         'base_currency',
@@ -60,6 +61,7 @@ class Product extends Model
     {
         return [
             'cost_price' => 'decimal:2',
+            'landing_cost' => 'decimal:2',
             'selling_price' => 'decimal:2',
             'min_price' => 'decimal:2',
             'base_currency_price' => 'decimal:2',
@@ -128,5 +130,95 @@ class Product extends Model
     public function purchaseOrderItems(): HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class);
+    }
+
+    /**
+     * Get the total cost price (cost + landing cost)
+     */
+    public function getTotalCostPriceAttribute(): float
+    {
+        return (float) $this->cost_price + (float) $this->landing_cost;
+    }
+
+    /**
+     * Calculate the minimum price to avoid loss
+     * Formula: cost_price + landing_cost + (margin_percentage of total cost)
+     */
+    public function calculateMinimumPrice(float $marginPercentage = 0.10): float
+    {
+        $totalCost = $this->getTotalCostPriceAttribute();
+        $margin = $totalCost * $marginPercentage;
+        return $totalCost + $margin;
+    }
+
+    /**
+     * Check if a given price is acceptable (not below minimum)
+     */
+    public function isPriceAcceptable(float $price): bool
+    {
+        $minimumPrice = $this->min_price ?? $this->calculateMinimumPrice();
+        return $price >= $minimumPrice;
+    }
+
+    /**
+     * Check if a discount amount is acceptable
+     *
+     * @param float $discountAmount The discount amount to apply
+     * @param int $quantity The quantity being sold
+     * @return bool True if discount is acceptable, false otherwise
+     */
+    public function isDiscountAcceptable(float $discountAmount, int $quantity = 1): bool
+    {
+        $totalSellingPrice = $this->selling_price * $quantity;
+        $discountedPrice = $totalSellingPrice - $discountAmount;
+
+        // Calculate minimum acceptable total price
+        $minimumPrice = $this->min_price ?? $this->calculateMinimumPrice();
+        $minimumTotal = $minimumPrice * $quantity;
+
+        return $discountedPrice >= $minimumTotal;
+    }
+
+    /**
+     * Get the maximum allowed discount for a given quantity
+     *
+     * @param int $quantity The quantity being sold
+     * @return float Maximum discount amount allowed
+     */
+    public function getMaximumDiscount(int $quantity = 1): float
+    {
+        $totalSellingPrice = $this->selling_price * $quantity;
+        $minimumPrice = $this->min_price ?? $this->calculateMinimumPrice();
+        $minimumTotal = $minimumPrice * $quantity;
+
+        $maxDiscount = $totalSellingPrice - $minimumTotal;
+
+        return max(0, $maxDiscount);
+    }
+
+    /**
+     * Get discount safety information for UI guidance
+     *
+     * @return array{safeDiscount: float, warningDiscount: float, maximumDiscount: float}
+     */
+    public function getDiscountGuidance(int $quantity = 1): array
+    {
+        $totalSellingPrice = $this->selling_price * $quantity;
+
+        // Safe discount: up to 5% off
+        $safeDiscount = $totalSellingPrice * 0.05;
+
+        // Warning discount: 5-15% off
+        $warningDiscount = $totalSellingPrice * 0.15;
+
+        // Maximum discount: calculated to not go below minimum price
+        $maximumDiscount = $this->getMaximumDiscount($quantity);
+
+        return [
+            'safe_discount' => round($safeDiscount, 2),
+            'warning_discount' => round($warningDiscount, 2),
+            'maximum_discount' => round($maximumDiscount, 2),
+            'minimum_price' => $this->min_price ?? $this->calculateMinimumPrice(),
+        ];
     }
 }

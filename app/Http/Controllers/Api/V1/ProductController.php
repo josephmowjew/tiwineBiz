@@ -12,6 +12,7 @@ use App\Http\Requests\Product\UploadImageRequest;
 use App\Http\Resources\ProductResource;
 use App\Imports\ProductsImport;
 use App\Models\Branch;
+use App\Models\Product;
 use App\Models\StockMovement;
 use App\Repositories\Contracts\ProductRepositoryInterface;
 use Illuminate\Http\JsonResponse;
@@ -576,5 +577,77 @@ class ProductController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Get quick products for POS grid.
+     */
+    public function quickProducts(Request $request): JsonResponse
+    {
+        \Log::info('quickProducts called', [
+            'user' => $request->user()?->email,
+            'headers' => $request->headers->all(),
+        ]);
+
+        $validated = $request->validate([
+            'category_id' => 'nullable|uuid|exists:categories,id',
+            'limit' => 'nullable|integer|min:1|max:200',
+        ]);
+
+        $user = $request->user();
+
+        // Get shop from header or user's first active shop
+        $shopId = $request->header('X-Shop-ID');
+        if (!$shopId) {
+            $shopUser = $user->shopUsers()->where('is_active', true)->first();
+            if (!$shopUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not assigned to any shop.',
+                ], 403);
+            }
+            $shopId = $shopUser->shop_id;
+        }
+
+        $query = Product::query()
+            ->where('shop_id', $shopId)
+            ->where('is_active', true);
+
+        // Filter by category if provided
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $validated['category_id']);
+        }
+
+        // Note: NOT filtering by images - we want to show all products
+        // Frontend can handle missing images gracefully
+
+        // Order by total sold (popularity) and name
+        $query->orderByDesc('total_sold')
+            ->orderBy('name');
+
+        $limit = $validated['limit'] ?? 20;
+        $products = $query->limit($limit)->get();
+
+        // Transform to QuickProduct format
+        $quickProducts = $products->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'selling_price' => (float) $product->selling_price,
+                'min_price' => (float) ($product->min_price ?? $product->calculateMinimumPrice()),
+                'cost_price' => (float) $product->cost_price,
+                'landing_cost' => (float) $product->landing_cost,
+                'stock_quantity' => $product->quantity,
+                'image_url' => $product->image_url,
+                'category_id' => $product->category_id,
+                'category_name' => $product->category?->name ?? 'Uncategorized',
+                'discount_guidance' => $product->getDiscountGuidance(1),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $quickProducts,
+        ]);
     }
 }

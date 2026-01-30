@@ -9,6 +9,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Resources\UserResource;
+use App\Models\ShopUser;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
 use Illuminate\Http\JsonResponse;
@@ -94,12 +95,39 @@ class AuthController extends Controller
                 'locked_until' => null,
             ]);
 
+            // Load user's shop and role information
+            $user->load(['ownedShops', 'shops']);
+
+            // Get user's primary shop (first owned shop or first associated shop)
+            $primaryShop = $user->ownedShops->first() ?? $user->shops->first();
+
+            // Get user's role in their primary shop
+            $role = null;
+            $shopId = null;
+
+            if ($primaryShop) {
+                $shopId = $primaryShop->id;
+                $shopUser = ShopUser::where('user_id', $user->id)
+                    ->where('shop_id', $shopId)
+                    ->with('role')
+                    ->first();
+
+                if ($shopUser && $shopUser->role) {
+                    $role = $shopUser->role->name;
+                }
+            }
+
             // Create token
             $token = $user->createToken('auth-token')->plainTextToken;
 
+            // Add role and shop_id to user resource
+            $userArray = (new \App\Http\Resources\UserResource($user))->toArray(request());
+            $userArray['role'] = $role;
+            $userArray['shop_id'] = $shopId;
+
             return response()->json([
                 'message' => 'Login successful.',
-                'user' => new UserResource($user),
+                'user' => $userArray,
                 'token' => $token,
             ], 200);
         } catch (ValidationException $e) {
@@ -154,8 +182,32 @@ class AuthController extends Controller
                 }
             }
 
+            // Get user's primary shop and role
+            $user->load(['ownedShops', 'shops']);
+            $primaryShop = $user->ownedShops->first() ?? $user->shops->first();
+
+            $role = null;
+            $shopId = null;
+
+            if ($primaryShop) {
+                $shopId = $primaryShop->id;
+                $shopUser = ShopUser::where('user_id', $user->id)
+                    ->where('shop_id', $shopId)
+                    ->with('role')
+                    ->first();
+
+                if ($shopUser && $shopUser->role) {
+                    $role = $shopUser->role->name;
+                }
+            }
+
+            // Add role and shop_id to user resource
+            $userArray = (new \App\Http\Resources\UserResource($user))->toArray($request);
+            $userArray['role'] = $role;
+            $userArray['shop_id'] = $shopId;
+
             return response()->json([
-                'user' => new UserResource($user),
+                'user' => $userArray,
             ], 200);
         } catch (\Exception $e) {
             return response()->json([

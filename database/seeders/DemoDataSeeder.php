@@ -277,6 +277,7 @@ class DemoDataSeeder extends Seeder
 
                 $sale = Sale::create([
                     'shop_id' => $demoShop->id,
+                    'branch_id' => null,
                     'sale_number' => 'SALE-'.now()->format('Ymd').'-'.str_pad($index + 1, 4, '0', STR_PAD_LEFT),
                     'customer_id' => $customer->id,
                     'subtotal' => $subtotal,

@@ -38,10 +38,13 @@ class ShopInvitationController extends Controller
             ], 404);
         }
 
-        // Verify role belongs to the shop
+        // Verify role belongs to the shop or is a system role
         $role = Role::query()
             ->where('id', $request->role_id)
-            ->where('shop_id', $shop->id)
+            ->where(function ($q) use ($shop) {
+                $q->whereNull('shop_id')  // System roles
+                    ->orWhere('shop_id', $shop->id);  // Shop-specific roles
+            })
             ->first();
 
         if (! $role) {
@@ -50,13 +53,25 @@ class ShopInvitationController extends Controller
             ], 404);
         }
 
-        // Find the user to invite
+        // Find the user to invite, or create a placeholder account
         $invitedUser = User::where('email', $request->email)->first();
 
+        $defaultPassword = null;
+        $wasCreated = false;
+
         if (! $invitedUser) {
-            return response()->json([
-                'message' => 'User not found with this email address.',
-            ], 404);
+            // Create a placeholder user account with default password
+            $defaultPassword = config('app.default_password', 'TiwineBiz@2025');
+            $wasCreated = true;
+
+            $invitedUser = User::create([
+                'email' => $request->email,
+                'name' => explode('@', $request->email)[0], // Use email username as placeholder
+                'phone' => null, // No phone number yet
+                'password_hash' => bcrypt($defaultPassword),
+                'is_active' => false, // Inactive until they accept invitation and set password
+                'email_verified_at' => null, // Will need to verify email
+            ]);
         }
 
         // Check for existing membership or pending invitation
@@ -105,12 +120,13 @@ class ShopInvitationController extends Controller
             // Generate acceptance URL
             $acceptUrl = config('app.frontend_url').'/invitations/accept/'.$invitationToken;
 
-            // Send notification
+            // Send notification (include default password if a new user was created)
             $invitedUser->notify(new ShopInvitationNotification(
                 $shop->name,
                 $inviter->name,
                 $role->display_name,
-                $acceptUrl
+                $acceptUrl,
+                $wasCreated ? $defaultPassword : null
             ));
 
             DB::commit();
@@ -230,6 +246,61 @@ class ShopInvitationController extends Controller
                     'invited_by' => [
                         'name' => $invitation->invitedBy->name ?? 'Unknown',
                     ],
+                    'expires_at' => $invitation->invitation_expires_at->toIso8601String(),
+                ];
+            }),
+        ]);
+    }
+
+    /**
+     * List pending invitations sent by a shop.
+     */
+    public function pendingForShop(Request $request): JsonResponse
+    {
+        $request->validate([
+            'shop_id' => ['required', 'uuid'],
+        ]);
+
+        $user = $request->user();
+
+        // Verify shop access
+        $shop = Shop::query()
+            ->where('id', $request->shop_id)
+            ->where(function ($q) use ($user) {
+                $q->where('owner_id', $user->id)
+                    ->orWhereHas('users', fn ($query) => $query->where('user_id', $user->id));
+            })
+            ->first();
+
+        if (! $shop) {
+            return response()->json([
+                'message' => 'Shop not found or you do not have access to it.',
+            ], 404);
+        }
+
+        // Get pending invitations for this shop
+        $invitations = ShopUser::query()
+            ->where('shop_id', $shop->id)
+            ->whereNull('invitation_accepted_at')
+            ->where('invitation_expires_at', '>', now())
+            ->with(['user', 'role', 'invitedBy'])
+            ->orderBy('invitation_expires_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'data' => $invitations->map(function ($invitation) {
+                return [
+                    'id' => $invitation->id,
+                    'email' => $invitation->user?->email,
+                    'role' => [
+                        'id' => $invitation->role->id,
+                        'display_name' => $invitation->role->display_name,
+                        'name' => $invitation->role->name,
+                    ],
+                    'invited_by' => [
+                        'name' => $invitation->invitedBy->name ?? 'Unknown',
+                    ],
+                    'invited_at' => $invitation->invitation_expires_at->subDays(7)->toIso8601String(),
                     'expires_at' => $invitation->invitation_expires_at->toIso8601String(),
                 ];
             }),

@@ -28,8 +28,12 @@ class RoleController extends Controller
             })
             ->pluck('id');
 
+        // Get system roles (shop_id IS NULL) OR roles for user's shops
         $query = Role::query()
-            ->whereIn('shop_id', $shopIds);
+            ->where(function ($q) use ($shopIds) {
+                $q->whereNull('shop_id')  // System roles
+                    ->orWhereIn('shop_id', $shopIds);  // Shop-specific roles
+            });
 
         // Apply filters
         if ($request->filled('shop_id')) {
@@ -141,7 +145,10 @@ class RoleController extends Controller
 
         $query = Role::query()
             ->where('id', $id)
-            ->whereIn('shop_id', $shopIds);
+            ->where(function ($q) use ($shopIds) {
+                $q->whereNull('shop_id')  // System roles
+                    ->orWhereIn('shop_id', $shopIds);  // Shop-specific roles
+            });
 
         // Load relationships if requested
         $includes = $request->input('include', '');
@@ -181,7 +188,10 @@ class RoleController extends Controller
 
         $role = Role::query()
             ->where('id', $id)
-            ->whereIn('shop_id', $shopIds)
+            ->where(function ($q) use ($shopIds) {
+                $q->whereNull('shop_id')  // System roles
+                    ->orWhereIn('shop_id', $shopIds);  // Shop-specific roles
+            })
             ->first();
 
         if (! $role) {
@@ -240,7 +250,10 @@ class RoleController extends Controller
 
         $role = Role::query()
             ->where('id', $id)
-            ->whereIn('shop_id', $shopIds)
+            ->where(function ($q) use ($shopIds) {
+                $q->whereNull('shop_id')  // System roles
+                    ->orWhereIn('shop_id', $shopIds);  // Shop-specific roles
+            })
             ->withCount('shopUsers')
             ->first();
 

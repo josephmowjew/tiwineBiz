@@ -18,15 +18,18 @@ class ShopInvitationNotification extends Notification
 
     protected string $acceptUrl;
 
+    protected ?string $defaultPassword;
+
     /**
      * Create a new notification instance.
      */
-    public function __construct(string $shopName, string $inviterName, string $roleName, string $acceptUrl)
+    public function __construct(string $shopName, string $inviterName, string $roleName, string $acceptUrl, ?string $defaultPassword = null)
     {
         $this->shopName = $shopName;
         $this->inviterName = $inviterName;
         $this->roleName = $roleName;
         $this->acceptUrl = $acceptUrl;
+        $this->defaultPassword = $defaultPassword;
     }
 
     /**
@@ -44,10 +47,17 @@ class ShopInvitationNotification extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)
+        $mail = (new MailMessage)
             ->subject('Invitation to Join '.$this->shopName)
             ->line($this->inviterName.' has invited you to join '.$this->shopName.' on TiwineBiz.')
-            ->line('You have been assigned the role: '.$this->roleName)
+            ->line('You have been assigned the role: '.$this->roleName);
+
+        if ($this->defaultPassword) {
+            $mail->line('Your default password is: **'.$this->defaultPassword.'**')
+                ->line('Please change your password after logging in for security.');
+        }
+
+        return $mail
             ->action('Accept Invitation', $this->acceptUrl)
             ->line('This invitation will expire in 7 days.')
             ->line('If you did not expect this invitation, no further action is required.');

@@ -25,6 +25,8 @@ class ProductResource extends JsonResource
             'manufacturer_code' => $this->manufacturer_code,
             'category_id' => $this->category_id,
             'cost_price' => $this->cost_price,
+            'landing_cost' => $this->landing_cost,
+            'total_cost_price' => $this->getTotalCostPriceAttribute(),
             'selling_price' => $this->selling_price,
             'min_price' => $this->min_price,
             'base_currency' => $this->base_currency,
@@ -57,6 +59,9 @@ class ProductResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
             'deleted_at' => $this->deleted_at?->toIso8601String(),
+
+            // Discount guidance for POS
+            'discount_guidance' => $this->getDiscountGuidance(1),
 
             // Relationships (only when loaded)
             'shop' => new ShopResource($this->whenLoaded('shop')),
