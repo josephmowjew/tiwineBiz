@@ -165,4 +165,20 @@ class User extends Authenticatable
 
         return $query->where('is_active', true)->pluck('id');
     }
+
+    /**
+     * Get shifts for the user.
+     */
+    public function shifts(): HasMany
+    {
+        return $this->hasMany(Shift::class);
+    }
+
+    /**
+     * Get active shift for the user.
+     */
+    public function activeShift(): ?Shift
+    {
+        return $this->shifts()->active()->first();
+    }
 }

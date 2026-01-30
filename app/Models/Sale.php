@@ -126,4 +126,9 @@ class Sale extends Model
         return $this->hasMany(MobileMoneyTransaction::class, 'reference_id')
             ->where('reference_type', 'sale');
     }
+
+    public function shift(): BelongsTo
+    {
+        return $this->belongsTo(Shift::class);
+    }
 }

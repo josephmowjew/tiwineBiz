@@ -23,7 +23,7 @@ class SendInvitationRequest extends FormRequest
     {
         return [
             'shop_id' => ['required', 'string', 'exists:shops,id'],
-            'email' => ['required', 'email', 'max:255', 'exists:users,email'],
+            'email' => ['required', 'email', 'max:255'],
             'role_id' => ['required', 'string', 'exists:roles,id'],
         ];
     }
@@ -40,7 +40,6 @@ class SendInvitationRequest extends FormRequest
             'shop_id.exists' => 'The selected shop does not exist.',
             'email.required' => 'Email address is required.',
             'email.email' => 'Please provide a valid email address.',
-            'email.exists' => 'No user found with this email address.',
             'role_id.required' => 'Role ID is required.',
             'role_id.exists' => 'The selected role does not exist.',
         ];

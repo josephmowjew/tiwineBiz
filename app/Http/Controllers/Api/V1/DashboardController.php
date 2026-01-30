@@ -204,4 +204,58 @@ class DashboardController extends Controller
             'generated_at' => now()->toIso8601String(),
         ]);
     }
+
+    /**
+     * Get teller-specific statistics for cashiers.
+     */
+    public function tellerStats(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $shopId = $request->header('X-Shop-ID') ?? $user->shop_id;
+        $today = now()->startOfDay();
+
+        // Get today's sales for this teller
+        $todaySales = \App\Models\Sale::where('served_by', $user->id)
+            ->where('shop_id', $shopId)
+            ->where('created_at', '>=', $today)
+            ->whereNull('cancelled_at');
+
+        $todaySalesCount = $todaySales->count();
+        $todayRevenue = $todaySales->sum('total_amount');
+
+        // Get active shift
+        $activeShift = \App\Models\Shift::forUser($user->id)
+            ->forShop($shopId)
+            ->active()
+            ->first();
+
+        // Calculate shift duration
+        $shiftDuration = null;
+        if ($activeShift) {
+            $shiftDuration = $activeShift->formatted_duration;
+        }
+
+        // Get sales target (default: MWK 500,000)
+        $salesTarget = 500000;
+
+        // Calculate progress
+        $targetProgress = $salesTarget > 0
+            ? round(($todayRevenue / $salesTarget) * 100, 2)
+            : 0;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'today_sales' => $todaySalesCount,
+                'today_revenue' => $todayRevenue,
+                'transaction_count' => $todaySalesCount,
+                'sales_target' => $salesTarget,
+                'target_progress' => $targetProgress,
+                'shift_active' => ! is_null($activeShift),
+                'shift_start_time' => $activeShift?->start_time,
+                'shift_duration' => $shiftDuration,
+                'cash_in_drawer' => $activeShift?->current_balance ?? 0,
+            ],
+        ]);
+    }
 }

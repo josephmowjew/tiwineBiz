@@ -54,6 +54,15 @@ Route::prefix('v1')->group(function () {
         // Shop Management
         Route::apiResource('shops', \App\Http\Controllers\Api\V1\ShopController::class);
 
+        // Shop User Management (nested routes)
+        Route::prefix('shops/{shop}')->group(function () {
+            Route::get('/users', [\App\Http\Controllers\Api\V1\ShopUserController::class, 'index'])->name('api.v1.shops.users.index');
+            Route::post('/users', [\App\Http\Controllers\Api\V1\ShopUserController::class, 'store'])->name('api.v1.shops.users.store');
+            Route::get('/users/{user}', [\App\Http\Controllers\Api\V1\ShopUserController::class, 'show'])->name('api.v1.shops.users.show');
+            Route::put('/users/{user}', [\App\Http\Controllers\Api\V1\ShopUserController::class, 'update'])->name('api.v1.shops.users.update');
+            Route::delete('/users/{user}', [\App\Http\Controllers\Api\V1\ShopUserController::class, 'destroy'])->name('api.v1.shops.users.destroy');
+        });
+
         // Role Management
         Route::apiResource('roles', \App\Http\Controllers\Api\V1\RoleController::class);
 
@@ -63,6 +72,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/{token}/accept', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'accept'])->name('api.v1.shop-invitations.accept');
             Route::post('/{token}/decline', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'decline'])->name('api.v1.shop-invitations.decline');
             Route::get('/pending', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'pending'])->name('api.v1.shop-invitations.pending');
+            Route::get('/pending-for-shop', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'pendingForShop'])->name('api.v1.shop-invitations.pending-for-shop');
             Route::delete('/{shopId}/{userId}', [\App\Http\Controllers\Api\V1\ShopInvitationController::class, 'cancel'])->name('api.v1.shop-invitations.cancel');
         });
 
@@ -73,8 +83,10 @@ Route::prefix('v1')->group(function () {
         Route::get('branches/{branch}/users', [\App\Http\Controllers\Api\V1\BranchController::class, 'users']);
 
         // Product Management
-        Route::apiResource('products', \App\Http\Controllers\Api\V1\ProductController::class);
+        // Specific routes must be defined before apiResource to avoid conflicts
+        Route::get('products/quick', [\App\Http\Controllers\Api\V1\ProductController::class, 'quickProducts'])->name('api.v1.products.quick');
         Route::post('products/import', [\App\Http\Controllers\Api\V1\ProductController::class, 'import'])->name('api.v1.products.import');
+        Route::apiResource('products', \App\Http\Controllers\Api\V1\ProductController::class);
         Route::post('products/{id}/images', [\App\Http\Controllers\Api\V1\ProductController::class, 'uploadImage'])->name('api.v1.products.upload-image');
         Route::delete('products/{id}/images/{imageIndex}', [\App\Http\Controllers\Api\V1\ProductController::class, 'deleteImage'])->name('api.v1.products.delete-image');
         Route::post('products/{id}/adjust-stock', [\App\Http\Controllers\Api\V1\ProductController::class, 'adjustStock'])->name('api.v1.products.adjust-stock');
@@ -93,6 +105,20 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('sales', \App\Http\Controllers\Api\V1\SaleController::class);
         Route::post('sales/{id}/refund', [\App\Http\Controllers\Api\V1\SaleController::class, 'refund'])->name('api.v1.sales.refund');
         Route::post('sales/{id}/fiscalize', [\App\Http\Controllers\Api\V1\SaleController::class, 'fiscalize'])->name('api.v1.sales.fiscalize');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Shift Management Routes
+        |--------------------------------------------------------------------------
+        */
+        Route::prefix('shifts')->group(function () {
+            Route::post('/start', [\App\Http\Controllers\Api\ShiftController::class, 'start'])->name('api.v1.shifts.start');
+            Route::post('/{shiftId}/end', [\App\Http\Controllers\Api\ShiftController::class, 'end'])->name('api.v1.shifts.end');
+            Route::get('/active', [\App\Http\Controllers\Api\ShiftController::class, 'getActive'])->name('api.v1.shifts.active');
+            Route::get('/history', [\App\Http\Controllers\Api\ShiftController::class, 'history'])->name('api.v1.shifts.history');
+            Route::post('/{shiftId}/balance', [\App\Http\Controllers\Api\ShiftController::class, 'updateBalance'])->name('api.v1.shifts.balance');
+            Route::get('/{shiftId}/report', [\App\Http\Controllers\Api\ShiftController::class, 'report'])->name('api.v1.shifts.report');
+        });
 
         // Payment Management (Immutable - no updates or deletes)
         Route::apiResource('payments', \App\Http\Controllers\Api\V1\PaymentController::class)->only(['index', 'store', 'show']);
@@ -138,6 +164,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/inventory', [\App\Http\Controllers\Api\V1\DashboardController::class, 'inventoryOverview'])->name('api.v1.dashboard.inventory');
             Route::get('/products', [\App\Http\Controllers\Api\V1\DashboardController::class, 'productInsights'])->name('api.v1.dashboard.products');
             Route::get('/quick-stats', [\App\Http\Controllers\Api\V1\DashboardController::class, 'quickStats'])->name('api.v1.dashboard.quick-stats');
+            Route::get('/teller-stats', [\App\Http\Controllers\Api\V1\DashboardController::class, 'tellerStats'])->name('api.v1.dashboard.teller-stats');
         });
 
         // Sales Reports
