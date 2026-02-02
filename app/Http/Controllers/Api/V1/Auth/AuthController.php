@@ -96,7 +96,7 @@ class AuthController extends Controller
             ]);
 
             // Load user's shop and role information
-            $user->load(['ownedShops', 'shops']);
+            $user->load(['ownedShops', 'shops', 'branches']);
 
             // Get user's primary shop (first owned shop or first associated shop)
             $primaryShop = $user->ownedShops->first() ?? $user->shops->first();
@@ -104,6 +104,8 @@ class AuthController extends Controller
             // Get user's role in their primary shop
             $role = null;
             $shopId = null;
+            $activeBranchId = null;
+            $activeBranchName = null;
 
             if ($primaryShop) {
                 $shopId = $primaryShop->id;
@@ -115,15 +117,27 @@ class AuthController extends Controller
                 if ($shopUser && $shopUser->role) {
                     $role = $shopUser->role->name;
                 }
+
+                // Get user's first active branch
+                $firstBranch = $user->branches()
+                    ->where('branch_user.is_active', true)
+                    ->first();
+
+                if ($firstBranch) {
+                    $activeBranchId = $firstBranch->id;
+                    $activeBranchName = $firstBranch->name;
+                }
             }
 
             // Create token
             $token = $user->createToken('auth-token')->plainTextToken;
 
-            // Add role and shop_id to user resource
+            // Add role, shop_id, and activeBranchId to user resource
             $userArray = (new \App\Http\Resources\UserResource($user))->toArray(request());
             $userArray['role'] = $role;
             $userArray['shop_id'] = $shopId;
+            $userArray['activeBranchId'] = $activeBranchId;
+            $userArray['activeBranchName'] = $activeBranchName;
 
             return response()->json([
                 'message' => 'Login successful.',
@@ -183,11 +197,12 @@ class AuthController extends Controller
             }
 
             // Get user's primary shop and role
-            $user->load(['ownedShops', 'shops']);
+            $user->load(['ownedShops', 'shops', 'branches']);
             $primaryShop = $user->ownedShops->first() ?? $user->shops->first();
 
             $role = null;
             $shopId = null;
+            $activeBranchId = null;
 
             if ($primaryShop) {
                 $shopId = $primaryShop->id;
@@ -199,12 +214,22 @@ class AuthController extends Controller
                 if ($shopUser && $shopUser->role) {
                     $role = $shopUser->role->name;
                 }
+
+                // Get user's first active branch
+                $firstBranch = $user->branches()
+                    ->where('branch_user.is_active', true)
+                    ->first();
+
+                if ($firstBranch) {
+                    $activeBranchId = $firstBranch->id;
+                }
             }
 
-            // Add role and shop_id to user resource
+            // Add role, shop_id, and activeBranchId to user resource
             $userArray = (new \App\Http\Resources\UserResource($user))->toArray($request);
             $userArray['role'] = $role;
             $userArray['shop_id'] = $shopId;
+            $userArray['activeBranchId'] = $activeBranchId;
 
             return response()->json([
                 'user' => $userArray,

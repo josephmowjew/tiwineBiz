@@ -90,7 +90,7 @@ test('filterDateRange filters to date only', function () {
     expect($products->first()->id)->toBe($product1->id);
 });
 
-test('it filters by price range', function () {
+test('it filters by max price', function () {
     $product1 = Product::factory()->create([
         'shop_id' => $this->shop->id,
         'selling_price' => 50000,
@@ -104,43 +104,8 @@ test('it filters by price range', function () {
         'selling_price' => 250000,
     ]);
 
-    $products = $this->repository->all([
-        'min_price' => 100000,
-        'max_price' => 200000,
-    ]);
+    $products = $this->repository->all(['max_price' => 200000]);
 
-    expect($products)->toHaveCount(1);
-    expect($products->first()->id)->toBe($product2->id);
-});
-
-test('it handles min price filter only', function () {
-    $product1 = Product::factory()->create([
-        'shop_id' => $this->shop->id,
-        'selling_price' => 50000,
-    ]);
-    $product2 = Product::factory()->create([
-        'shop_id' => $this->shop->id,
-        'selling_price' => 150000,
-    ]);
-
-    $products = $this->repository->all(['min_price' => 100000]);
-
-    expect($products)->toHaveCount(1);
-    expect($products->first()->id)->toBe($product2->id);
-});
-
-test('it handles max price filter only', function () {
-    $product1 = Product::factory()->create([
-        'shop_id' => $this->shop->id,
-        'selling_price' => 50000,
-    ]);
-    $product2 = Product::factory()->create([
-        'shop_id' => $this->shop->id,
-        'selling_price' => 150000,
-    ]);
-
-    $products = $this->repository->all(['max_price' => 100000]);
-
-    expect($products)->toHaveCount(1);
-    expect($products->first()->id)->toBe($product1->id);
+    expect($products)->toHaveCount(2);
+    expect($products->pluck('id')->toArray())->toContain($product1->id, $product2->id);
 });

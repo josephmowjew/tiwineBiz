@@ -18,7 +18,6 @@ class ProductFactory extends Factory
     {
         $costPrice = fake()->randomFloat(2, 100, 50000);
         $sellingPrice = $costPrice * fake()->randomFloat(2, 1.2, 2.0);
-        $minPrice = $costPrice * fake()->randomFloat(2, 1.05, 1.15);
         $quantity = fake()->randomFloat(3, 0, 100);
 
         return [
@@ -32,7 +31,6 @@ class ProductFactory extends Factory
             'category_id' => null,
             'cost_price' => $costPrice,
             'selling_price' => $sellingPrice,
-            'min_price' => $minPrice,
             'base_currency' => 'MWK',
             'base_currency_price' => null,
             'last_exchange_rate_snapshot' => null,

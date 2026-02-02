@@ -98,13 +98,26 @@ test('product has pricing fields', function () {
         'shop_id' => $shop->id,
         'cost_price' => 1000.00,
         'selling_price' => 1500.00,
-        'min_price' => 1100.00,
         'created_by' => $owner->id,
     ]);
 
     expect($product->cost_price)->toBe('1000.00')
-        ->and($product->selling_price)->toBe('1500.00')
-        ->and($product->min_price)->toBe('1100.00');
+        ->and($product->selling_price)->toBe('1500.00');
+});
+
+test('product can calculate minimum price from landing cost', function () {
+    $owner = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $owner->id]);
+
+    // landing_cost is the TOTAL cost (purchase price + shipping + customs + MRA)
+    $product = Product::factory()->create([
+        'shop_id' => $shop->id,
+        'cost_price' => 1000.00,  // Original purchase price
+        'landing_cost' => 1200.00,  // Total cost to get to Malawi
+        'created_by' => $owner->id,
+    ]);
+
+    expect($product->calculateMinimumPrice())->toBe(1200.0);
 });
 
 test('product tracks stock quantity', function () {

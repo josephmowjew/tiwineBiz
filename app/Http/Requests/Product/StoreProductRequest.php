@@ -32,7 +32,6 @@ class StoreProductRequest extends FormRequest
             'category_id' => ['nullable', 'uuid', 'exists:categories,id'],
             'cost_price' => ['required', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0'],
-            'min_price' => ['nullable', 'numeric', 'min:0'],
             'base_currency' => ['nullable', 'string', 'in:MWK,USD,ZAR,GBP,EUR'],
             'base_currency_price' => ['nullable', 'numeric', 'min:0'],
             'quantity' => ['nullable', 'numeric', 'min:0'],

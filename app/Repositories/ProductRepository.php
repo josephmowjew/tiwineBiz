@@ -77,12 +77,8 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
         }
 
         // Price range filter
-        if (! empty($filters['min_price'])) {
-            $query->where('price', '>=', $filters['min_price']);
-        }
-
         if (! empty($filters['max_price'])) {
-            $query->where('price', '<=', $filters['max_price']);
+            $query->where('selling_price', '<=', $filters['max_price']);
         }
 
         // Created date range

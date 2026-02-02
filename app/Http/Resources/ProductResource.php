@@ -28,7 +28,7 @@ class ProductResource extends JsonResource
             'landing_cost' => $this->landing_cost,
             'total_cost_price' => $this->getTotalCostPriceAttribute(),
             'selling_price' => $this->selling_price,
-            'min_price' => $this->min_price,
+            'min_price' => $this->calculateMinimumPrice(),
             'base_currency' => $this->base_currency,
             'base_currency_price' => $this->base_currency_price,
             'last_exchange_rate_snapshot' => $this->last_exchange_rate_snapshot,

@@ -18,7 +18,9 @@ use Illuminate\Support\Facades\DB;
 class SaleController extends Controller
 {
     /**
-     * Display a listing of sales scoped to user's shops.
+     * Display a listing of sales scoped to user's shops and role.
+     * - Owners/Managers: see all sales from their shops
+     * - Cashiers/Accountants: see only their own sales
      */
     public function index(Request $request): JsonResponse
     {
@@ -33,6 +35,25 @@ class SaleController extends Controller
             ->values();
 
         $query = Sale::query()->whereIn('shop_id', $shopIds);
+
+        // Get user's roles across all their shops
+        $shopUserRoles = \App\Models\ShopUser::where('user_id', $user->id)
+            ->whereIn('shop_id', $shopIds)
+            ->with('role')
+            ->get()
+            ->pluck('role.name')
+            ->toArray();
+
+        // Also check if user owns any shops (Owner role)
+        $ownsShops = $user->ownedShops()->exists();
+
+        // Role-based filtering: only restrict if user has ONLY Cashier/Accountant roles
+        // If they have Owner/Manager role in any shop OR own any shops, they see all sales
+        $hasOwnerManagerRole = $ownsShops || in_array('owner', $shopUserRoles) || in_array('manager', $shopUserRoles);
+
+        if (! $hasOwnerManagerRole && (in_array('cashier', $shopUserRoles) || in_array('accountant', $shopUserRoles))) {
+            $query->where('served_by', $user->id);
+        }
 
         // Filter by specific shop if provided
         if ($request->filled('shop_id')) {

@@ -241,13 +241,10 @@ class TVProductSeeder extends Seeder
 
             $created = 0;
             foreach ($tvs as $tvData) {
-                $minPrice = $tvData['cost_price'] * 1.1;
-
                 Product::create(array_merge($tvData, [
                     'id' => Str::uuid(),
                     'shop_id' => $shop->id,
                     'category_id' => $electronicsCategory->id,
-                    'min_price' => $minPrice,
                     'base_currency' => 'MWK',
                     'unit' => 'piece',
                     'min_stock_level' => 2,
