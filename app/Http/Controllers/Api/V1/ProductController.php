@@ -634,13 +634,15 @@ class ProductController extends Controller
                 'id' => $product->id,
                 'name' => $product->name,
                 'selling_price' => (float) $product->selling_price,
-                'min_price' => (float) ($product->min_price ?? $product->calculateMinimumPrice()),
+                'min_price' => $product->calculateMinimumPrice(),
                 'cost_price' => (float) $product->cost_price,
                 'landing_cost' => (float) $product->landing_cost,
                 'stock_quantity' => $product->quantity,
                 'image_url' => $product->image_url,
                 'category_id' => $product->category_id,
                 'category_name' => $product->category?->name ?? 'Uncategorized',
+                'is_vat_applicable' => (bool) $product->is_vat_applicable,
+                'vat_rate' => (float) ($product->vat_rate ?? 0),
                 'discount_guidance' => $product->getDiscountGuidance(1),
             ];
         });

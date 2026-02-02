@@ -25,7 +25,6 @@ class Product extends Model
         'cost_price',
         'landing_cost',
         'selling_price',
-        'min_price',
         'base_currency',
         'base_currency_price',
         'last_exchange_rate_snapshot',
@@ -63,7 +62,6 @@ class Product extends Model
             'cost_price' => 'decimal:2',
             'landing_cost' => 'decimal:2',
             'selling_price' => 'decimal:2',
-            'min_price' => 'decimal:2',
             'base_currency_price' => 'decimal:2',
             'last_exchange_rate_snapshot' => 'array',
             'quantity' => 'decimal:3',
@@ -142,13 +140,11 @@ class Product extends Model
 
     /**
      * Calculate the minimum price to avoid loss
-     * Formula: cost_price + landing_cost + (margin_percentage of total cost)
+     * Formula: landing_cost (which is the total cost including purchase price + shipping + customs + MRA)
      */
-    public function calculateMinimumPrice(float $marginPercentage = 0.10): float
+    public function calculateMinimumPrice(): float
     {
-        $totalCost = $this->getTotalCostPriceAttribute();
-        $margin = $totalCost * $marginPercentage;
-        return $totalCost + $margin;
+        return (float) $this->landing_cost;
     }
 
     /**
@@ -156,7 +152,7 @@ class Product extends Model
      */
     public function isPriceAcceptable(float $price): bool
     {
-        $minimumPrice = $this->min_price ?? $this->calculateMinimumPrice();
+        $minimumPrice = $this->calculateMinimumPrice();
         return $price >= $minimumPrice;
     }
 
@@ -173,7 +169,7 @@ class Product extends Model
         $discountedPrice = $totalSellingPrice - $discountAmount;
 
         // Calculate minimum acceptable total price
-        $minimumPrice = $this->min_price ?? $this->calculateMinimumPrice();
+        $minimumPrice = $this->calculateMinimumPrice();
         $minimumTotal = $minimumPrice * $quantity;
 
         return $discountedPrice >= $minimumTotal;
@@ -188,7 +184,7 @@ class Product extends Model
     public function getMaximumDiscount(int $quantity = 1): float
     {
         $totalSellingPrice = $this->selling_price * $quantity;
-        $minimumPrice = $this->min_price ?? $this->calculateMinimumPrice();
+        $minimumPrice = $this->calculateMinimumPrice();
         $minimumTotal = $minimumPrice * $quantity;
 
         $maxDiscount = $totalSellingPrice - $minimumTotal;
@@ -218,7 +214,7 @@ class Product extends Model
             'safe_discount' => round($safeDiscount, 2),
             'warning_discount' => round($warningDiscount, 2),
             'maximum_discount' => round($maximumDiscount, 2),
-            'minimum_price' => $this->min_price ?? $this->calculateMinimumPrice(),
+            'minimum_price' => $this->calculateMinimumPrice(),
         ];
     }
 }

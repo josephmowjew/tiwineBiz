@@ -21,11 +21,11 @@ class MraEisService
 
     public function __construct()
     {
-        $this->baseUrl = config('services.mra_eis.base_url', 'https://eis-api.mra.mw');
-        $this->clientId = config('services.mra_eis.client_id', '');
-        $this->clientSecret = config('services.mra_eis.client_secret', '');
-        $this->enabled = config('services.mra_eis.enabled', false);
-        $this->timeout = config('services.mra_eis.timeout', 30);
+        $this->baseUrl = config('services.mra_eis.base_url') ?? 'https://eis-api.mra.mw';
+        $this->clientId = config('services.mra_eis.client_id') ?? '';
+        $this->clientSecret = config('services.mra_eis.client_secret') ?? '';
+        $this->enabled = config('services.mra_eis.enabled') ?? false;
+        $this->timeout = config('services.mra_eis.timeout') ?? 30;
     }
 
     /**

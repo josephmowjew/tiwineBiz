@@ -463,3 +463,120 @@ test('sales list is paginated', function () {
         ])
         ->assertJsonPath('meta.per_page', 15);
 });
+
+test('cashier can only see their own sales from their shop', function () {
+    $cashierRole = \App\Models\Role::where('name', 'Cashier')->firstOrFail();
+    $managerRole = \App\Models\Role::where('name', 'Manager')->firstOrFail();
+
+    $cashier = User::factory()->create();
+    $otherCashier = User::factory()->create();
+    $shop = Shop::factory()->create();
+
+    // Attach users to shop with roles
+    $shop->users()->attach($cashier->id, ['role_id' => $cashierRole->id]);
+    $shop->users()->attach($otherCashier->id, ['role_id' => $cashierRole->id]);
+
+    $cashierSale = Sale::factory()->create([
+        'shop_id' => $shop->id,
+        'served_by' => $cashier->id,
+    ]);
+
+    $otherSale = Sale::factory()->create([
+        'shop_id' => $shop->id,
+        'served_by' => $otherCashier->id,
+    ]);
+
+    $response = $this->actingAs($cashier, 'sanctum')
+        ->getJson('/api/v1/sales');
+
+    $response->assertOk()
+        ->assertJsonFragment(['sale_number' => $cashierSale->sale_number])
+        ->assertJsonMissing(['sale_number' => $otherSale->sale_number]);
+});
+
+test('accountant can only see their own sales from their shop', function () {
+    $accountantRole = \App\Models\Role::where('name', 'Accountant')->firstOrFail();
+
+    $accountant = User::factory()->create();
+    $otherAccountant = User::factory()->create();
+    $shop = Shop::factory()->create();
+
+    // Attach users to shop with roles
+    $shop->users()->attach($accountant->id, ['role_id' => $accountantRole->id]);
+    $shop->users()->attach($otherAccountant->id, ['role_id' => $accountantRole->id]);
+
+    $accountantSale = Sale::factory()->create([
+        'shop_id' => $shop->id,
+        'served_by' => $accountant->id,
+    ]);
+
+    $otherSale = Sale::factory()->create([
+        'shop_id' => $shop->id,
+        'served_by' => $otherAccountant->id,
+    ]);
+
+    $response = $this->actingAs($accountant, 'sanctum')
+        ->getJson('/api/v1/sales');
+
+    $response->assertOk()
+        ->assertJsonFragment(['sale_number' => $accountantSale->sale_number])
+        ->assertJsonMissing(['sale_number' => $otherSale->sale_number]);
+});
+
+test('owner can see all sales from their shop', function () {
+    $cashierRole = \App\Models\Role::where('name', 'Cashier')->firstOrFail();
+
+    $owner = User::factory()->create();
+    $cashier = User::factory()->create();
+    $shop = Shop::factory()->create(['owner_id' => $owner->id]);
+
+    // Attach cashier to shop with role
+    $shop->users()->attach($cashier->id, ['role_id' => $cashierRole->id]);
+
+    $cashierSale = Sale::factory()->create([
+        'shop_id' => $shop->id,
+        'served_by' => $cashier->id,
+    ]);
+
+    $ownerSale = Sale::factory()->create([
+        'shop_id' => $shop->id,
+        'served_by' => $owner->id,
+    ]);
+
+    $response = $this->actingAs($owner, 'sanctum')
+        ->getJson('/api/v1/sales');
+
+    $response->assertOk()
+        ->assertJsonFragment(['sale_number' => $cashierSale->sale_number])
+        ->assertJsonFragment(['sale_number' => $ownerSale->sale_number]);
+});
+
+test('manager can see all sales from their shop', function () {
+    $managerRole = \App\Models\Role::where('name', 'Manager')->firstOrFail();
+    $cashierRole = \App\Models\Role::where('name', 'Cashier')->firstOrFail();
+
+    $manager = User::factory()->create();
+    $cashier = User::factory()->create();
+    $shop = Shop::factory()->create();
+
+    // Attach users to shop with roles
+    $shop->users()->attach($manager->id, ['role_id' => $managerRole->id]);
+    $shop->users()->attach($cashier->id, ['role_id' => $cashierRole->id]);
+
+    $cashierSale = Sale::factory()->create([
+        'shop_id' => $shop->id,
+        'served_by' => $cashier->id,
+    ]);
+
+    $managerSale = Sale::factory()->create([
+        'shop_id' => $shop->id,
+        'served_by' => $manager->id,
+    ]);
+
+    $response = $this->actingAs($manager, 'sanctum')
+        ->getJson('/api/v1/sales');
+
+    $response->assertOk()
+        ->assertJsonFragment(['sale_number' => $cashierSale->sale_number])
+        ->assertJsonFragment(['sale_number' => $managerSale->sale_number]);
+});
