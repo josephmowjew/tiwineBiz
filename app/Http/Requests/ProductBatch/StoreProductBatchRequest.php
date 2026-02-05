@@ -11,6 +11,16 @@ class StoreProductBatchRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        // Convert empty strings to null for optional fields
+        $this->merge(
+            collect($this->all())
+                ->map(fn ($value) => $value === '' ? null : $value)
+                ->all()
+        );
+    }
+
     public function rules(): array
     {
         return [

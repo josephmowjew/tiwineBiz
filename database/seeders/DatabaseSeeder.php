@@ -12,11 +12,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Always seed system data (roles, exchange rates, categories)
+        // Always seed system data (roles, exchange rates, categories, admin)
         $this->call([
             RoleSeeder::class,
             ExchangeRateSeeder::class,
             CategorySeeder::class,
+            AdminSeeder::class,
         ]);
 
         // Seed demo data only in local/development environments
