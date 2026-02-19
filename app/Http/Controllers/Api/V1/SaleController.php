@@ -162,10 +162,16 @@ class SaleController extends Controller
             // Generate sale number
             $saleNumber = 'SALE-'.strtoupper(uniqid());
 
+            // Get user's active branch
+            $activeBranch = $user->branches()
+                ->where('branch_user.is_active', true)
+                ->first();
+
             // Create sale
             $saleData = $request->except('items');
             $saleData['sale_number'] = $saleNumber;
             $saleData['served_by'] = $user->id;
+            $saleData['branch_id'] = $activeBranch?->id ?? null;
             $saleData['sale_date'] = $saleData['sale_date'] ?? now();
             $saleData['completed_at'] = $request->payment_status === 'paid' ? now() : null;
 

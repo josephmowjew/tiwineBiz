@@ -15,6 +15,7 @@ class Product extends Model
 
     protected $fillable = [
         'shop_id',
+        'branch_id',
         'name',
         'name_chichewa',
         'description',
@@ -90,6 +91,11 @@ class Product extends Model
         return $this->belongsTo(Shop::class);
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
@@ -113,6 +119,11 @@ class Product extends Model
     public function productBatches(): HasMany
     {
         return $this->hasMany(ProductBatch::class);
+    }
+
+    public function productBranches(): HasMany
+    {
+        return $this->hasMany(ProductBranch::class);
     }
 
     public function saleItems(): HasMany
@@ -153,14 +164,15 @@ class Product extends Model
     public function isPriceAcceptable(float $price): bool
     {
         $minimumPrice = $this->calculateMinimumPrice();
+
         return $price >= $minimumPrice;
     }
 
     /**
      * Check if a discount amount is acceptable
      *
-     * @param float $discountAmount The discount amount to apply
-     * @param int $quantity The quantity being sold
+     * @param  float  $discountAmount  The discount amount to apply
+     * @param  int  $quantity  The quantity being sold
      * @return bool True if discount is acceptable, false otherwise
      */
     public function isDiscountAcceptable(float $discountAmount, int $quantity = 1): bool
@@ -178,7 +190,7 @@ class Product extends Model
     /**
      * Get the maximum allowed discount for a given quantity
      *
-     * @param int $quantity The quantity being sold
+     * @param  int  $quantity  The quantity being sold
      * @return float Maximum discount amount allowed
      */
     public function getMaximumDiscount(int $quantity = 1): float
@@ -216,5 +228,77 @@ class Product extends Model
             'maximum_discount' => round($maximumDiscount, 2),
             'minimum_price' => $this->calculateMinimumPrice(),
         ];
+    }
+
+    /**
+     * Get total quantity across all branches.
+     */
+    public function getTotalQuantityAttribute(): float
+    {
+        // Use already-loaded relationship if available, otherwise query fresh
+        if ($this->relationLoaded('productBranches')) {
+            return (float) $this->productBranches->sum('quantity');
+        }
+
+        return (float) $this->productBranches()->sum('quantity');
+    }
+
+    /**
+     * Get quantity for a specific branch.
+     */
+    public function getQuantityForBranch(string $branchId): float
+    {
+        $productBranch = $this->productBranches()->where('branch_id', $branchId)->first();
+
+        return $productBranch ? (float) $productBranch->quantity : 0;
+    }
+
+    /**
+     * Get stock levels grouped by branch.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function getStockByBranch()
+    {
+        // Use already-loaded relationship if available, otherwise query fresh
+        $productBranches = $this->relationLoaded('productBranches')
+            ? $this->productBranches
+            : $this->productBranches()->with('branch')->get();
+
+        return $productBranches->map(function ($productBranch) {
+            // Load branch relationship if not already loaded
+            if (! $productBranch->relationLoaded('branch')) {
+                $productBranch->load('branch');
+            }
+
+            return [
+                'branch_id' => $productBranch->branch_id,
+                'branch_name' => $productBranch->branch?->name ?? 'Unknown',
+                'quantity' => (float) $productBranch->quantity,
+                'min_stock_level' => $productBranch->min_stock_level,
+                'max_stock_level' => $productBranch->max_stock_level,
+                'reorder_point' => $productBranch->reorder_point,
+                'status' => $productBranch->getStockStatus(),
+            ];
+        });
+    }
+
+    /**
+     * Check if product is available in any branch.
+     */
+    public function isAvailableInAnyBranch(): bool
+    {
+        return $this->productBranches()->where('quantity', '>', 0)->exists();
+    }
+
+    /**
+     * Get branches where this product is in stock.
+     */
+    public function getBranchesInStock()
+    {
+        return $this->productBranches()
+            ->where('quantity', '>', 0)
+            ->with('branch')
+            ->get();
     }
 }

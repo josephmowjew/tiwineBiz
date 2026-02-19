@@ -110,6 +110,11 @@ class ProductBatchController extends Controller
             );
         }
 
+        // Auto-generate lot number if not provided
+        if (! isset($data['lot_number'])) {
+            $data['lot_number'] = 'LOT-'.now()->format('Ym').'-'.strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 6));
+        }
+
         // Calculate total landed cost if not provided
         if (! isset($data['total_landed_cost'])) {
             $data['total_landed_cost'] = ($data['product_cost'] ?? 0)

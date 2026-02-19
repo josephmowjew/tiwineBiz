@@ -141,7 +141,10 @@ class ProductController extends Controller
         // Prepare filters including shop scope and relationships
         $filters = [
             'id' => $id,
-            'with' => $request->input('include'),
+            'with' => array_merge(
+                ['productBranches.branch', 'category'], // Always load productBranches and category
+                $request->input('include', [])
+            ),
         ];
 
         // Use repository to find product with filters
@@ -354,6 +357,7 @@ class ProductController extends Controller
             // Create stock movement record (immutable audit trail)
             $stockMovement = StockMovement::create([
                 'shop_id' => $product->shop_id,
+                'branch_id' => $product->branch_id,
                 'product_id' => $product->id,
                 'movement_type' => $movementType,
                 'quantity' => $request->quantity,
@@ -368,25 +372,72 @@ class ProductController extends Controller
                 'created_at' => now(),
             ]);
 
-            // Update product quantity
+            // Update main product quantity (total across all branches)
             $this->productRepository->update($id, [
                 'quantity' => $quantityAfter,
                 'last_restocked_at' => $request->type === 'increase' ? now() : $product->last_restocked_at,
                 'updated_by' => $request->user()->id,
             ]);
 
+            // If branch_id is provided, update branch-specific stock in product_branches table
+            if ($request->filled('branch_id')) {
+                $branchId = $request->input('branch_id');
+
+                // Find or create product_branch record
+                $productBranch = \App\Models\ProductBranch::updateOrCreate(
+                    [
+                        'product_id' => $product->id,
+                        'shop_id' => $product->shop_id,
+                        'branch_id' => $branchId,
+                    ],
+                    [
+                        'quantity' => $quantityAfter,
+                        'updated_at' => now(),
+                        'updated_by' => $request->user()->id,
+                    ],
+                    ['id' => $product->id . $product->shop_id . $branchId] // Unique constraint
+                );
+
+                // Update cost price if provided
+                if ($request->filled('unit_cost')) {
+                    $productBranch->unit_cost = $request->input('unit_cost');
+                    $productBranch->save();
+                }
+            }
+
             DB::commit();
+
+            // Prepare response data
+            $responseData = [
+                'product_id' => $product->id,
+                'quantity_before' => $currentStock,
+                'quantity_after' => $quantityAfter,
+                'adjustment_type' => $request->type,
+                'adjustment_quantity' => $request->quantity,
+                'branch_id' => $request->input('branch_id'),
+                'stock_movement_id' => $stockMovement->id,
+            ];
+
+            // If branch-specific stock was updated, include branch stock info
+            if ($request->filled('branch_id')) {
+                $branchId = $request->input('branch_id');
+                $productBranch = \App\Models\ProductBranch::where('product_id', $product->id)
+                    ->where('branch_id', $branchId)
+                    ->first();
+
+                if ($productBranch) {
+                    $responseData['branch_stock_before'] = (float)$productBranch->quantity;
+                    $responseData['branch_stock_after'] = $quantityAfter;
+                    $responseData['branch_min_stock_level'] = (float)$productBranch->min_stock_level;
+                    $responseData['branch_max_stock_level'] = (float)$productBranch->max_stock_level;
+                    $responseData['branch_reorder_point'] = (float)$productBranch->reorder_point;
+                    $responseData['branch_stock_status'] = $productBranch->getStockStatus();
+                }
+            }
 
             return response()->json([
                 'message' => 'Stock adjusted successfully.',
-                'data' => [
-                    'product_id' => $product->id,
-                    'quantity_before' => $currentStock,
-                    'quantity_after' => $quantityAfter,
-                    'adjustment_type' => $request->type,
-                    'adjustment_quantity' => $request->quantity,
-                    'stock_movement_id' => $stockMovement->id,
-                ],
+                'data' => $responseData,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -598,9 +649,9 @@ class ProductController extends Controller
 
         // Get shop from header or user's first active shop
         $shopId = $request->header('X-Shop-ID');
-        if (!$shopId) {
+        if (! $shopId) {
             $shopUser = $user->shopUsers()->where('is_active', true)->first();
-            if (!$shopUser) {
+            if (! $shopUser) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not assigned to any shop.',
@@ -611,7 +662,8 @@ class ProductController extends Controller
 
         $query = Product::query()
             ->where('shop_id', $shopId)
-            ->where('is_active', true);
+            ->where('is_active', true)
+            ->with(['category.parent', 'branch', 'productBranches.branch']); // Eager load category, parent category, branch, and stock by branch
 
         // Filter by category if provided
         if ($request->filled('category_id')) {
@@ -630,6 +682,20 @@ class ProductController extends Controller
 
         // Transform to QuickProduct format
         $quickProducts = $products->map(function ($product) {
+            $category = $product->category;
+            $parentCategory = $category?->parent;
+            $branch = $product->branch;
+
+            // Get stock by branch information
+            $stockByBranch = $product->productBranches->map(function ($pb) {
+                return [
+                    'branch_id' => $pb->branch_id,
+                    'branch_name' => $pb->branch?->name,
+                    'quantity' => (float) $pb->quantity,
+                    'stock_status' => $pb->getStockStatus(),
+                ];
+            })->toArray();
+
             return [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -637,10 +703,16 @@ class ProductController extends Controller
                 'min_price' => $product->calculateMinimumPrice(),
                 'cost_price' => (float) $product->cost_price,
                 'landing_cost' => (float) $product->landing_cost,
-                'stock_quantity' => $product->quantity,
+                'stock_quantity' => $product->total_quantity ?? $product->quantity ?? 0, // Use total_quantity if available
+                'total_quantity' => $product->total_quantity ?? $product->quantity ?? 0,
                 'image_url' => $product->image_url,
                 'category_id' => $product->category_id,
-                'category_name' => $product->category?->name ?? 'Uncategorized',
+                'category_name' => $category?->name ?? 'Uncategorized',
+                'parent_category_id' => $parentCategory?->id,
+                'parent_category_name' => $parentCategory?->name,
+                'branch_id' => $product->branch_id, // Legacy field
+                'branch_name' => $branch?->name, // Legacy field
+                'stock_by_branch' => $stockByBranch, // NEW: Stock breakdown by branch
                 'is_vat_applicable' => (bool) $product->is_vat_applicable,
                 'vat_rate' => (float) ($product->vat_rate ?? 0),
                 'discount_guidance' => $product->getDiscountGuidance(1),

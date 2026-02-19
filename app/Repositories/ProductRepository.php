@@ -97,7 +97,7 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
             $query->with($relations);
         } else {
             // Default relationships to load
-            $query->with(['category', 'shop']);
+            $query->with(['category', 'shop', 'branch']);
         }
 
         // Sorting
